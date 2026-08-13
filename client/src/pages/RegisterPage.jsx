@@ -33,6 +33,19 @@ const RegisterPage = () => {
     }
   }, [navigate, redirect, userInfo]);
 
+  const resendHandler = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.post(`${API_URL}/api/users/resend-otp`, { email });
+      setLoading(false);
+      setMessage(null);
+      alert(data.message || `OTP resent to ${email}`);
+    } catch (err) {
+      setLoading(false);
+      setMessage(err.response?.data?.message || err.message);
+    }
+  };
+
   const submitHandler = async (e) => {
     e.preventDefault();
 
@@ -124,13 +137,24 @@ const RegisterPage = () => {
               {loading ? 'Processing...' : (step === 1 ? 'Send OTP' : 'Verify & Register')}
             </button>
             {step === 2 && (
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="w-full text-center mt-3 text-sm text-blue-600 hover:underline"
-              >
-                Change Email / Resend
-              </button>
+              <div className="flex items-center justify-center gap-4 mt-3 text-sm">
+                <button
+                  type="button"
+                  onClick={resendHandler}
+                  disabled={loading}
+                  className="text-blue-600 hover:underline"
+                >
+                  Resend Code
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-gray-500 hover:underline"
+                >
+                  Change Email
+                </button>
+              </div>
             )}
           </div>
         </form>

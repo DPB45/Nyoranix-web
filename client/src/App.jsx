@@ -22,6 +22,7 @@ const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -62,6 +63,7 @@ function App() {
             {/* User Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/profile" element={<UserProfilePage />} />
             <Route path="/orders" element={<OrdersPage />} />
 

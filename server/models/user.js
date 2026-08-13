@@ -10,7 +10,11 @@ const userSchema = new mongoose.Schema({
     // === ADDED FIELDS FOR OTP VERIFICATION ===
     isVerified: { type: Boolean, default: false },
     otp: { type: String },
-    otpExpires: { type: Date }
+    otpExpires: { type: Date },
+
+    // === ADDED FIELDS FOR PASSWORD RESET ===
+    resetOtp: { type: String },
+    resetOtpExpires: { type: Date }
 }, { timestamps: true });
 
 // Method to check if password matches

@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { FaCheckCircle, FaTruck, FaBox, FaFilePdf, FaFileInvoice, FaArrowLeft } from 'react-icons/fa';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const OrderDetailsPage = () => {
   const { id } = useParams();
@@ -52,7 +52,7 @@ const OrderDetailsPage = () => {
       tableRows.push([item.name, item.quantity, `Rs. ${item.price}`, `Rs. ${item.quantity * item.price}`]);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 50,

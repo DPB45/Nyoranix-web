@@ -232,14 +232,15 @@ const ContactPage = () => {
 
           {/* Map Section */}
           <div className="bg-gray-200 rounded-2xl overflow-hidden h-64 shadow-inner relative group">
-            {/* Replace this div with Google Maps Iframe if you have a key */}
-            <div className="absolute inset-0 flex items-center justify-center text-gray-500 font-medium">
-              <div className="text-center">
-                <FaMapMarkerAlt size={40} className="mx-auto mb-2 text-gray-400"/>
-                <p>Map View Unavailable</p>
-              </div>
-            </div>
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-5 transition-all"></div>
+            <iframe
+              title="Nyoranix Head Office Location"
+              src="https://maps.google.com/maps?q=Ashirwad%20Building%2C%20Flat%20No.%206%2C%20Vadgaon%20Bk%2C%20Maharashtra%20411041&t=&z=15&ie=UTF8&iwloc=&output=embed"
+              className="absolute inset-0 w-full h-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            ></iframe>
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-5 transition-all pointer-events-none"></div>
           </div>
         </div>
       </div>

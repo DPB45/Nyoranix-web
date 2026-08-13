@@ -62,6 +62,11 @@ const LoginPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <div className="text-right mt-2">
+                <Link to="/forgot-password" className="text-xs font-medium text-blue-600 hover:text-blue-500">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
           </div>
 

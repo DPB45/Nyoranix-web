@@ -15,11 +15,56 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 30000,
 });
 
+// The "From" address Brevo actually sends as. This MUST be an email address
+// that is verified as a sender in your Brevo account (Senders, Domains &
+// Dedicated IPs -> Senders), otherwise Brevo will silently reject/drop the
+// message even though sendMail() resolves without throwing.
+// Falls back to BREVO_LOGIN if BREVO_FROM_EMAIL isn't set, but it's best to
+// set BREVO_FROM_EMAIL explicitly on Render to a verified sender.
+const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || process.env.BREVO_LOGIN;
+
+// Send a 6-digit OTP for email verification (registration) or password reset
+const sendOtpEmail = async (email, otp, purpose = "verify") => {
+  const isReset = purpose === "reset";
+  const subject = isReset
+    ? "Your Nyoranix password reset code"
+    : "Verify your email - Nyoranix";
+  const heading = isReset ? "Reset your password" : "Verify your email";
+  const intro = isReset
+    ? "Use the code below to reset your Nyoranix account password. This code expires in 10 minutes."
+    : "Use the code below to verify your Nyoranix account. This code expires in 10 minutes.";
+
+  const mailOptions = {
+    from: `"Nyoranix Support" <${FROM_EMAIL}>`,
+    to: email,
+    subject,
+    text: `Your ${isReset ? "password reset" : "verification"} code is: ${otp}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #2563EB; text-align: center;">${heading}</h2>
+        <p style="font-size: 16px; color: #555; line-height: 1.6;">${intro}</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <span style="display: inline-block; background: #f3f4f6; padding: 16px 32px; border-radius: 8px; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #111;">${otp}</span>
+        </div>
+        <p style="font-size: 14px; color: #999; text-align: center;">
+          If you didn't request this, you can safely ignore this email.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #aaa; text-align: center;">
+          © ${new Date().getFullYear()} Nyoranix. All rights reserved.
+        </p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
 // Send welcome email
 const sendWelcomeEmail = async (email, name) => {
   try {
     const mailOptions = {
-      from: `"Nyoranix Support" <${process.env.BREVO_FROM_EMAIL}>`,
+      from: `"Nyoranix Support" <${FROM_EMAIL}>`,
       to: email,
       subject: "Welcome to Nyoranix! 🚀",
       html: `
@@ -74,10 +119,10 @@ const sendWelcomeEmail = async (email, name) => {
 const sendInquiryNotification = async (inquiry) => {
   try {
     const adminEmail =
-      process.env.ADMIN_EMAIL || process.env.BREVO_FROM_EMAIL;
+      process.env.ADMIN_EMAIL || FROM_EMAIL;
 
     const mailOptions = {
-      from: `"Nyoranix Website" <${process.env.BREVO_FROM_EMAIL}>`,
+      from: `"Nyoranix Website" <${FROM_EMAIL}>`,
       to: adminEmail,
 
       // Reply directly to the customer
@@ -161,4 +206,5 @@ const sendInquiryNotification = async (inquiry) => {
 module.exports = {
   sendWelcomeEmail,
   sendInquiryNotification,
+  sendOtpEmail,
 };
