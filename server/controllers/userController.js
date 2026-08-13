@@ -7,11 +7,17 @@ const nodemailer = require('nodemailer');
 
 // Configure Nodemailer (Use your credentials)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 2525,
+  secure: false,
+  requireTLS: true,
   auth: {
-    user: process.env.SMTP_EMAIL , // Replace with your email
-    pass: process.env.SMTP_PASSWORD     // Replace with your Google App Password (Not your login password)
-  }
+    user: process.env.SMTP_EMAIL,
+    pass: process.env.SMTP_PASSWORD
+  },
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000
 });
 
 // Generate JWT Token
