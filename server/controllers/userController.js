@@ -7,17 +7,17 @@ const nodemailer = require('nodemailer');
 
 // Configure Nodemailer (Use your credentials)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  requireTLS: true,
-  auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASSWORD
-  },
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000
+    host: "smtp-relay.brevo.com",
+    port: 2525,
+    secure: false,
+    requireTLS: true,
+    auth: {
+        user: process.env.BREVO_LOGIN,
+        pass: process.env.BREVO_SMTP_KEY,
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
 });
 
 // Generate JWT Token
