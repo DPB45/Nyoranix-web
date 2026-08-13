@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import { setCredentials } from '../redux/slices/userSlice';
+import toast from 'react-hot-toast';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -29,7 +30,7 @@ const LoginPage = () => {
       dispatch(setCredentials({ ...res.data }));
       navigate(redirect);
     } catch (err) {
-      alert(err.response?.data?.message || err.error);
+      toast.error(err.response?.data?.message || 'Login failed');
     }
   };
 

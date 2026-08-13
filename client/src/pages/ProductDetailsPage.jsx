@@ -119,7 +119,7 @@ const ProductDetailsPage = () => {
 
   // ... (Keep other handlers: handleLikeReview, handleDeleteReview, handleEditReview)
   const handleLikeReview = async (reviewId) => {
-    if(!userInfo) { alert("Please login to like reviews"); return; }
+    if(!userInfo) { toast.error("Please login to like reviews"); return; }
     try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         await axios.put(`${API_URL}/api/products/${id}/reviews/${reviewId}/like`, {}, config);

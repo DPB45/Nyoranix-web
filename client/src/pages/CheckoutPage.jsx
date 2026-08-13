@@ -6,6 +6,7 @@ import axios from 'axios';
 import { FaCheck, FaTruck, FaCreditCard, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
 import { clearCartItems } from '../redux/slices/cartSlice';
 import QRCode from 'react-qr-code';
+import toast from 'react-hot-toast';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -79,10 +80,10 @@ const CheckoutPage = () => {
     }
   };
 
-  // === 4. PLACE ORDER HANDLER (FIXED WITH ALERT) ===
+  // === 4. PLACE ORDER HANDLER ===
   const handlePlaceOrder = async () => {
     if (!userInfo) {
-      alert("Please login to place an order");
+      toast.error("Please login to place an order");
       navigate('/login');
       return;
     }
@@ -132,15 +133,14 @@ const CheckoutPage = () => {
 
       const { data } = await axios.post(`${API_URL}/api/orders`, orderPayload, config);
 
-      // === SUCCESS ALERT ADDED HERE ===
-      alert("Order Placed Successfully!");
+      toast.success("Order Placed Successfully!");
 
       dispatch(clearCartItems());
       navigate(`/order/${data._id}`);
     } catch (error) {
       console.error("Order Error:", error);
       const msg = error.response?.data?.message || "Order Failed";
-      alert(`Error: ${msg}`);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
