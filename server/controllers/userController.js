@@ -81,12 +81,12 @@ const registerUser = async (req, res) => {
 
     if (user) {
         // 3. Send Email
-        const mailOptions = {
-            from: 'Nyoranix Support',
-            to: email,
-            subject: 'Verify your email - Nyoranix',
-            text: `Your Verification Code is: ${otp}`
-        };
+     const mailOptions = {
+         from: `"Nyoranix Support" <${process.env.BREVO_LOGIN}>`,
+         to: email,
+         subject: "Verify your email - Nyoranix",
+         text: `Your verification code is: ${otp}`,
+     };
 
         try {
             await transporter.sendMail(mailOptions);
