@@ -66,7 +66,7 @@ const Navbar = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      navigate(`/shop?search=${searchTerm}`);
+      navigate(`/shop?search=${encodeURIComponent(searchTerm.trim())}`);
       setIsMobileMenuOpen(false);
       setSuggestions([]);
     }

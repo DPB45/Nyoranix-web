@@ -104,7 +104,7 @@ const OrdersPage = () => {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-800">{item.name}</h3>
-                      <p className="text-sm text-gray-500">Qty: {item.qty}</p>
+                      <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
                     </div>
                     {/* Link to product details using item.product (ID) */}
                     <Link to={`/product/${item.product}`} className="text-nyoranixRed text-sm font-medium hover:underline">
@@ -124,9 +124,12 @@ const OrdersPage = () => {
                   Invoice
                 </Link>
 
-                <button className="text-sm bg-nyoranixBlack text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 flex items-center gap-2">
+                <Link
+                  to={`/order/${order._id}`}
+                  className="text-sm bg-nyoranixBlack text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 flex items-center gap-2"
+                >
                   Track Package <FaArrowRight size={12} />
-                </button>
+                </Link>
               </div>
             </div>
           ))}

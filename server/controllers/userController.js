@@ -30,6 +30,8 @@ const authUser = async (req, res) => {
             name: user.name,
             email: user.email,
             isAdmin: user.isAdmin,
+            mobile: user.mobile,
+            addresses: user.addresses,
             token: generateToken(user._id),
         });
     } else {
@@ -151,6 +153,8 @@ const verifyEmail = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        mobile: user.mobile,
+        addresses: user.addresses,
         token: generateToken(user._id),
       });
     } else {
@@ -212,6 +216,8 @@ const resetPassword = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        mobile: user.mobile,
+        addresses: user.addresses,
         token: generateToken(user._id),
     });
 };
@@ -228,6 +234,8 @@ const getUserProfile = async (req, res) => {
             name: user.name,
             email: user.email,
             isAdmin: user.isAdmin,
+            mobile: user.mobile,
+            addresses: user.addresses,
         });
     } else {
         res.status(404);
@@ -244,6 +252,9 @@ const updateUserProfile = async (req, res) => {
     if (user) {
         user.name = req.body.name || user.name;
         user.email = req.body.email || user.email;
+        if (req.body.mobile !== undefined) {
+            user.mobile = req.body.mobile;
+        }
         if (req.body.password) {
             user.password = req.body.password;
         }
@@ -253,11 +264,49 @@ const updateUserProfile = async (req, res) => {
             name: updatedUser.name,
             email: updatedUser.email,
             isAdmin: updatedUser.isAdmin,
+            mobile: updatedUser.mobile,
+            addresses: updatedUser.addresses,
             token: generateToken(updatedUser._id),
         });
     } else {
         res.status(404).json({ message: 'User not found' });
     }
+};
+
+// @desc    Add a saved address
+// @route   POST /api/users/address
+// @access  Private
+const addUserAddress = async (req, res) => {
+    const { address, city, postalCode, country } = req.body;
+
+    if (!address || !city) {
+        return res.status(400).json({ message: 'Address and city are required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.addresses.push({ address, city, postalCode, country: country || 'India' });
+    await user.save();
+    res.status(201).json({ addresses: user.addresses });
+};
+
+// @desc    Delete a saved address
+// @route   DELETE /api/users/address/:addressId
+// @access  Private
+const deleteUserAddress = async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.addresses = user.addresses.filter(
+        (addr) => addr._id.toString() !== req.params.addressId
+    );
+    await user.save();
+    res.json({ addresses: user.addresses });
 };
 
 // @desc    Get all users (Admin)
@@ -301,6 +350,8 @@ module.exports = {
     resetPassword,
     getUserProfile,
     updateUserProfile,
+    addUserAddress,
+    deleteUserAddress,
     getUsers,
     deleteUser
 };

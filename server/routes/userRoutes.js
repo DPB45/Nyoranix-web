@@ -8,6 +8,8 @@ const {
     forgotPassword,
     resetPassword,
     updateUserProfile,
+    addUserAddress,
+    deleteUserAddress,
     getUsers,
     deleteUser
 } = require('../controllers/userController');
@@ -26,6 +28,8 @@ router.post('/reset-password', resetPassword);
 
 router.post('/login', authUser);
 router.route('/profile').put(protect, updateUserProfile);
+router.route('/address').post(protect, addUserAddress);
+router.route('/address/:addressId').delete(protect, deleteUserAddress);
 
 router.route('/:id').delete(protect, admin, deleteUser);
 

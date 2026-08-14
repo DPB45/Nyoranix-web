@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../utils/confirmToast';
+import { setCredentials } from '../redux/slices/userSlice';
 import { FaUser, FaBoxOpen, FaDownload, FaEye, FaCheckCircle, FaTruck, FaList, FaPen, FaTrash, FaPlus, FaLock, FaSave, FaMapMarkerAlt } from 'react-icons/fa';
 // REMOVED jsPDF imports as we are using the dedicated Invoice page
 // import jsPDF from 'jspdf';
@@ -82,6 +83,8 @@ const UserProfilePage = () => {
 
       const { data } = await axios.put(`${API_URL}/api/users/profile`, payload, config);
 
+      dispatch(setCredentials(data));
+      setMobile(data.mobile || '');
       setMessage({ type: 'success', text: 'Profile Updated Successfully!' });
       setPassword('');
       setConfirmPassword('');
@@ -91,17 +94,32 @@ const UserProfilePage = () => {
   };
 
   // === 3. ADDRESS HANDLERS ===
-  const handleAddAddress = () => {
-    if(!newAddress.address || !newAddress.city) { toast.error("Please fill address details"); return; }
-    const updatedAddresses = [...addresses, { ...newAddress, _id: Date.now().toString() }];
-    setAddresses(updatedAddresses);
-    setNewAddress({ address: '', city: '', postalCode: '', country: 'India' });
-    setShowAddressForm(false);
+  const handleAddAddress = async () => {
+    if (!newAddress.address || !newAddress.city) { toast.error("Please fill address details"); return; }
+    try {
+      const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+      const { data } = await axios.post(`${API_URL}/api/users/address`, newAddress, config);
+      setAddresses(data.addresses);
+      dispatch(setCredentials({ ...userInfo, addresses: data.addresses }));
+      setNewAddress({ address: '', city: '', postalCode: '', country: 'India' });
+      setShowAddressForm(false);
+      toast.success('Address saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save address');
+    }
   };
 
   const handleDeleteAddress = async (id) => {
     if (await confirmToast("Delete this address?", "Delete")) {
-      setAddresses(addresses.filter(addr => addr._id !== id));
+      try {
+        const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+        const { data } = await axios.delete(`${API_URL}/api/users/address/${id}`, config);
+        setAddresses(data.addresses);
+        dispatch(setCredentials({ ...userInfo, addresses: data.addresses }));
+        toast.success('Address removed');
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to delete address');
+      }
     }
   };
 

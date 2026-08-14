@@ -6,6 +6,15 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     isAdmin: { type: Boolean, required: true, default: false }, // Critical for Admin Panel
+    mobile: { type: String, default: '' },
+    addresses: [
+      {
+        address: { type: String, required: true },
+        city: { type: String, required: true },
+        postalCode: { type: String },
+        country: { type: String, default: 'India' },
+      }
+    ],
 
     // === ADDED FIELDS FOR OTP VERIFICATION ===
     isVerified: { type: Boolean, default: false },

@@ -41,7 +41,8 @@ const ShopPage = () => {
   const [sortBy, setSortBy] = useState("Relevance");
 
   // Filter States
-  const [priceRange, setPriceRange] = useState(10000);
+  const [priceRange, setPriceRange] = useState(20000);
+  const [maxPriceLimit, setMaxPriceLimit] = useState(20000);
   const [selectedCategories, setSelectedCategories] = useState([]);
 
   // === UPDATED CATEGORIES LIST ===
@@ -67,6 +68,15 @@ const ShopPage = () => {
         const { data } = await axios.get(`${API_URL}/api/products`);
         setAllProducts(data);
         setFilteredProducts(data);
+
+        // Size the price slider to the actual catalog instead of a hardcoded
+        // ceiling - otherwise any product priced above that fixed number
+        // becomes permanently invisible on this page, filter or no filter.
+        const highestPrice = data.reduce((max, p) => Math.max(max, p.price || 0), 0);
+        const dynamicMax = Math.max(20000, Math.ceil(highestPrice / 1000) * 1000);
+        setMaxPriceLimit(dynamicMax);
+        setPriceRange(dynamicMax); // default to showing the full catalog, not pre-filtered
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -88,7 +98,9 @@ const ShopPage = () => {
       result = result.filter(p => selectedCategories.includes(p.category));
     }
 
-    result = result.filter(p => p.price <= priceRange);
+    if (priceRange < maxPriceLimit) {
+      result = result.filter(p => p.price <= priceRange);
+    }
 
     if (sortBy === "Price: Low to High") {
       result.sort((a, b) => a.price - b.price);
@@ -100,7 +112,7 @@ const ShopPage = () => {
 
     setFilteredProducts(result);
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, priceRange, sortBy, allProducts]);
+  }, [searchQuery, selectedCategories, priceRange, maxPriceLimit, sortBy, allProducts]);
 
   const handleCheckboxChange = (e, value) => {
     if (e.target.checked) {
@@ -161,18 +173,18 @@ const ShopPage = () => {
         </div>
 
         {/* Price Range */}
-        <FilterSection title={`Max Price: ₹${priceRange}`}>
+        <FilterSection title={`Max Price: ₹${priceRange.toLocaleString('en-IN')}${priceRange >= maxPriceLimit ? '+' : ''}`}>
           <input
             type="range"
             min="0"
-            max="20000"
+            max={maxPriceLimit}
             step="100"
             value={priceRange}
             onChange={(e) => setPriceRange(Number(e.target.value))}
             className="w-full accent-blue-600 cursor-pointer"
           />
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>₹0</span><span>₹20,000+</span>
+            <span>₹0</span><span>₹{maxPriceLimit.toLocaleString('en-IN')}+</span>
           </div>
         </FilterSection>
 
