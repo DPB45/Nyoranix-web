@@ -117,11 +117,20 @@ const getOrderById = async (req, res) => {
     // Populate attaches the user's name and email to the order data
     const order = await Order.findById(req.params.id).populate('user', 'name email');
 
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
     }
+
+    // A customer may only view their own order; admins can view any order.
+    // Without this check, any logged-in user could view another customer's
+    // full order - shipping address, phone, items, payment reference - just
+    // by knowing or guessing the order ID.
+    const isOwner = order.user && order.user._id.toString() === req.user._id.toString();
+    if (!isOwner && !req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to view this order' });
+    }
+
+    res.json(order);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server Error' });

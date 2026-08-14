@@ -4,7 +4,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { confirmToast } from '../utils/confirmToast';
 import { addToCart } from '../redux/slices/cartSlice';
 // === 1. ADD WHATSAPP ICON ===
 import {
@@ -77,14 +76,14 @@ const ProductDetailsPage = () => {
   // === HANDLERS ===
   const handleAddToCart = () => {
     if (product && product.countInStock > 0) {
-      dispatch(addToCart({ ...product, quantity: quantity, countInStock: product.countInStock }));
+      dispatch(addToCart({ ...product, id: product._id, quantity: quantity, countInStock: product.countInStock }));
       toast.success(`${product.name} added to cart!`);
     }
   };
 
   const handleBuyNow = () => {
     if (product && product.countInStock > 0) {
-      dispatch(addToCart({ ...product, quantity: quantity, countInStock: product.countInStock }));
+      dispatch(addToCart({ ...product, id: product._id, quantity: quantity, countInStock: product.countInStock }));
       navigate('/checkout');
     }
   };
@@ -129,7 +128,7 @@ const ProductDetailsPage = () => {
   }
 
   const handleDeleteReview = async (reviewId) => {
-    if (await confirmToast("Are you sure you want to delete your review?", "Delete")) {
+    if (window.confirm("Are you sure you want to delete your review?")) {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         await axios.delete(`${API_URL}/api/products/${id}/reviews/${reviewId}`, config);

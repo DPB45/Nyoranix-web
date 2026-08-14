@@ -89,7 +89,7 @@ const HomePage = () => {
   };
 
   const handleAddToCart = (product) => {
-    dispatch(addToCart({ ...product, quantity: 1 }));
+    dispatch(addToCart({ ...product, id: product._id, quantity: 1 }));
     toast.success(`${product.name} added to cart!`);
   };
 

@@ -20,8 +20,9 @@ const authUser = async (req, res) => {
     // Check if user exists, password matches, AND is verified
     if (user && (await user.matchPassword(password))) {
         if (user.isVerified === false) {
-             // Optional: Handle unverified users trying to login (or let them login if logic allows)
-             // For strict OTP flow, you might want to return an error here, but standard authUser is kept simple.
+            return res.status(403).json({
+                message: 'Please verify your email before logging in. Check your inbox for the OTP, or register again to get a new code.'
+            });
         }
 
         res.json({

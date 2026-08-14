@@ -15,8 +15,15 @@ const cartSlice = createSlice({
       const existItem = state.cartItems.find((x) => x.id === item.id);
 
       if (existItem) {
+        // Adding a product that's already in the cart should INCREASE the
+        // quantity, not replace the whole line - otherwise re-adding a
+        // product you already have 3 of (with the page's quantity selector
+        // reset to 1) would silently drop your cart back down to 1.
+        const mergedQuantity = existItem.quantity + item.quantity;
+        const cap = item.countInStock || existItem.countInStock;
+        const finalQuantity = cap ? Math.min(mergedQuantity, cap) : mergedQuantity;
         state.cartItems = state.cartItems.map((x) =>
-          x.id === existItem.id ? item : x
+          x.id === existItem.id ? { ...item, quantity: finalQuantity } : x
         );
       } else {
         state.cartItems = [...state.cartItems, item];

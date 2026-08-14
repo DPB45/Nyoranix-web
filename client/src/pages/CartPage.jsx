@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { addToCart, removeFromCart } from '../redux/slices/cartSlice';
+import { removeFromCart, updateQuantity } from '../redux/slices/cartSlice';
 // 1. Added FaShoppingBag to imports
 import { FaTrash, FaArrowRight, FaShoppingBag } from 'react-icons/fa';
 
@@ -71,7 +71,7 @@ const CartPage = () => {
                     {/* Quantity Selector */}
                     <select
                       value={item.quantity}
-                      onChange={(e) => dispatch(addToCart({ ...item, quantity: Number(e.target.value) }))}
+                      onChange={(e) => dispatch(updateQuantity({ id: item.id, quantity: Number(e.target.value) }))}
                       className="border border-gray-300 rounded-md p-1 text-sm focus:border-blue-500 outline-none"
                     >
                       {[...Array(item.countInStock).keys()].map((x) => (
