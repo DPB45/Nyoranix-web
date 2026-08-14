@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react'; // 1. Import Suspense & lazy
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 // Layout
@@ -40,12 +40,19 @@ const PageLoader = () => (
 );
 
 function App() {
+  // The admin dashboard has its own dedicated layout (sidebar/topbar) - the
+  // public site chrome (Navbar/Footer/WhatsApp button) shouldn't wrap it,
+  // otherwise the public footer renders directly under the admin content on
+  // mobile, which reads as the dashboard being cut off / broken.
+  const { pathname } = useLocation();
+  const isAdminRoute = pathname.startsWith('/admin');
+
   return (
     <div className="flex flex-col min-h-screen font-sans bg-nyoranixWhite relative">
       <Toaster position="top-center" reverseOrder={false} />
       <ScrollToTop /> {/* 4. Add ScrollToTop here */}
 
-      <Navbar />
+      {!isAdminRoute && <Navbar />}
 
       <main className="flex-grow">
         {/* 5. Wrap Routes in Suspense */}
@@ -85,8 +92,8 @@ function App() {
         </Suspense>
       </main>
 
-      <Footer />
-      <WhatsAppButton />
+      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && <WhatsAppButton />}
     </div>
   );
 }

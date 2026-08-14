@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../utils/confirmToast';
 import { FaUser, FaBoxOpen, FaDownload, FaEye, FaCheckCircle, FaTruck, FaList, FaPen, FaTrash, FaPlus, FaLock, FaSave, FaMapMarkerAlt } from 'react-icons/fa';
 // REMOVED jsPDF imports as we are using the dedicated Invoice page
 // import jsPDF from 'jspdf';
@@ -90,15 +92,15 @@ const UserProfilePage = () => {
 
   // === 3. ADDRESS HANDLERS ===
   const handleAddAddress = () => {
-    if(!newAddress.address || !newAddress.city) return alert("Please fill address details");
+    if(!newAddress.address || !newAddress.city) { toast.error("Please fill address details"); return; }
     const updatedAddresses = [...addresses, { ...newAddress, _id: Date.now().toString() }];
     setAddresses(updatedAddresses);
     setNewAddress({ address: '', city: '', postalCode: '', country: 'India' });
     setShowAddressForm(false);
   };
 
-  const handleDeleteAddress = (id) => {
-    if(window.confirm("Delete this address?")) {
+  const handleDeleteAddress = async (id) => {
+    if (await confirmToast("Delete this address?", "Delete")) {
       setAddresses(addresses.filter(addr => addr._id !== id));
     }
   };

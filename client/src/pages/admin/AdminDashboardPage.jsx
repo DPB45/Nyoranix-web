@@ -2,13 +2,15 @@ import { API_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { confirmToast } from '../../utils/confirmToast';
 import {
   FaBox, FaUsers, FaShoppingCart, FaWallet,
   FaPlus, FaClipboardList, FaTrash, FaTimes,
   FaSearch, FaEdit, FaArrowUp, FaArrowDown, FaUpload, FaTimesCircle,
   FaCog, FaImage, FaCheck, FaTruck, FaSave, FaExclamationTriangle, FaEye,
   FaCloudUploadAlt, FaFileCsv, FaCheckCircle, // 1. Added Bulk Upload Icons
-  FaEnvelopeOpenText, FaCircle // 6. Added Messages Tab Icons
+  FaEnvelopeOpenText, FaCircle, FaBars // 6. Added Messages Tab Icons + mobile menu
 } from 'react-icons/fa';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import QRCode from 'react-qr-code';
@@ -33,6 +35,7 @@ const AdminDashboardPage = () => {
 
   // === STATE ===
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [users, setUsers] = useState([]);
@@ -105,26 +108,26 @@ const AdminDashboardPage = () => {
 
   // === HANDLERS ===
   const handleDeleteUser = async (id) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
+    if (await confirmToast("Are you sure you want to delete this user?", "Delete")) {
       try {
         await axios.delete(`${API_URL}/api/users/${id}`, { headers: { Authorization: `Bearer ${userInfo.token}` } });
         fetchData();
-        alert("User Deleted");
-      } catch (e) { alert("Failed to delete user"); }
+        toast.success("User Deleted");
+      } catch (e) { toast.error("Failed to delete user"); }
     }
   };
 
   const handleMarkDelivered = async (id) => {
-    try { await axios.put(`${API_URL}/api/orders/${id}/deliver`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { alert("Failed"); }
+    try { await axios.put(`${API_URL}/api/orders/${id}/deliver`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { toast.error("Failed"); }
   };
 
   const handleMarkPaid = async (id) => {
-    if (window.confirm("Confirm you've verified this payment (checked the UPI transaction ID against your bank/UPI app) before marking it paid?")) {
+    if (await confirmToast("Confirm you've verified this payment (checked the UPI transaction ID against your bank/UPI app) before marking it paid?", "Confirm")) {
       try {
         await axios.put(`${API_URL}/api/orders/${id}/pay`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } });
         fetchData();
         if (selectedOrder?._id === id) setShowOrderModal(false);
-      } catch (e) { alert("Failed to mark order as paid"); }
+      } catch (e) { toast.error("Failed to mark order as paid"); }
     }
   };
 
@@ -134,9 +137,9 @@ const AdminDashboardPage = () => {
         const product = products.find(p => p._id === id);
         if(!product) return;
         await axios.put(`${API_URL}/api/products/${id}`, { ...product, countInStock: Number(newStock) }, config);
-        alert("Stock Updated Successfully!");
+        toast.success("Stock Updated Successfully!");
         fetchData();
-    } catch (e) { alert("Failed to update stock."); }
+    } catch (e) { toast.error("Failed to update stock."); }
   };
 
   const handleToggleNewArrival = async (product) => {
@@ -144,7 +147,7 @@ const AdminDashboardPage = () => {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
       await axios.put(`${API_URL}/api/products/${product._id}`, { ...product, isNewArrival: !product.isNewArrival }, config);
       fetchData();
-    } catch (e) { alert("Failed to update New Arrival status"); }
+    } catch (e) { toast.error("Failed to update New Arrival status"); }
   };
 
   // === MESSAGES (CONTACT FORM) HANDLERS ===
@@ -161,13 +164,13 @@ const AdminDashboardPage = () => {
   };
 
   const handleDeleteMessage = async (id) => {
-    if (window.confirm('Delete this message permanently?')) {
+    if (await confirmToast('Delete this message permanently?', 'Delete')) {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         await axios.delete(`${API_URL}/api/inquiry/${id}`, config);
         setMessages(prev => prev.filter(m => m._id !== id));
         setShowMessageModal(false);
-      } catch (e) { alert('Failed to delete message'); }
+      } catch (e) { toast.error('Failed to delete message'); }
     }
   };
 
@@ -296,8 +299,8 @@ const AdminDashboardPage = () => {
   const handleBannerUpload = (e, index) => { const file = e.target.files[0]; if (file) { const r = new FileReader(); r.onloadend = () => { const newBanners = [...banners]; newBanners[index].image = r.result; setBanners(newBanners); }; r.readAsDataURL(file); } };
   const handleBannerChange = (index, field, value) => { const newBanners = [...banners]; newBanners[index][field] = value; setBanners(newBanners); };
   const addBannerSlide = () => { setBanners([...banners, { image: '', title: '', subtitle: '' }]); };
-  const removeBannerSlide = async (index) => { if (window.confirm("Are you sure you want to delete this slide permanently?")) { const newBanners = banners.filter((_, i) => i !== index); setBanners(newBanners); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners: newBanners }, config); } catch (e) { alert("Error deleting slide from database. Refreshing..."); fetchData(); } } };
-  const handleUpdateSettings = async (e) => { e.preventDefault(); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners, upiId, upiPayeeName }, config); alert("Settings Saved Successfully!"); fetchData(); } catch (e) { alert("Failed to save settings"); console.error(e); } };
+  const removeBannerSlide = async (index) => { if (await confirmToast("Are you sure you want to delete this slide permanently?", "Delete")) { const newBanners = banners.filter((_, i) => i !== index); setBanners(newBanners); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners: newBanners }, config); } catch (e) { toast.error("Error deleting slide from database. Refreshing..."); fetchData(); } } };
+  const handleUpdateSettings = async (e) => { e.preventDefault(); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners, upiId, upiPayeeName }, config); toast.success("Settings Saved Successfully!"); fetchData(); } catch (e) { toast.error("Failed to save settings"); console.error(e); } };
 
   const handleFileUpload = (e) => { const files = Array.from(e.target.files); files.forEach(file => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onloadend = () => { setFormData(prev => ({ ...prev, images: [...prev.images, reader.result] })); }; }); };
   const removeImage = (index) => setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
@@ -310,7 +313,7 @@ const AdminDashboardPage = () => {
   const addOtherSpec = () => { if(tempOtherSpec.key && tempOtherSpec.value) { setFormData(prev => ({...prev, otherSpecifications: [...prev.otherSpecifications, tempOtherSpec]})); setTempOtherSpec({key:'', value:''}); }};
   const removeOtherSpec = (idx) => setFormData(prev => ({...prev, otherSpecifications: prev.otherSpecifications.filter((_, i) => i !== idx)}));
 
-  const handleDeleteProduct = async (id) => { if (window.confirm("Delete?")) { try { await axios.delete(`${API_URL}/api/products/${id}`, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { alert("Failed"); } } };
+  const handleDeleteProduct = async (id) => { if (await confirmToast("Delete this product?", "Delete")) { try { await axios.delete(`${API_URL}/api/products/${id}`, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { toast.error("Failed"); } } };
   const handlePriceExclChange = (e) => { const ex = e.target.value; const incl = ex ? (parseFloat(ex) * 1.18).toFixed(2) : ''; setFormData(prev => ({ ...prev, priceExclGST: ex, priceInclGST: incl, price: incl })); };
   const handlePriceInclChange = (e) => { const incl = e.target.value; const ex = incl ? (parseFloat(incl) / 1.18).toFixed(2) : ''; setFormData(prev => ({ ...prev, priceExclGST: ex, priceInclGST: incl, price: incl })); };
   const openAddModal = () => { setIsEditing(false); setFormData({ _id: '', name: '', brand: '', category: 'NYORAI', subCategory: 'General', countInStock: '', shortDescription: '', description: '', priceExclGST: '', priceInclGST: '', price: '', images: [], features: [], specifications: [], otherSpecifications: [], isNewArrival: false }); setShowModal(true); };
@@ -324,7 +327,7 @@ const AdminDashboardPage = () => {
     setShowModal(true);
   };
 
-  const handleFormSubmit = async (e) => { e.preventDefault(); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; const payload = { ...formData, description: formData.shortDescription, image: formData.images[0] || '' }; if (isEditing) await axios.put(`${API_URL}/api/products/${formData._id}`, payload, config); else await axios.post(`${API_URL}/api/products`, payload, config); alert(isEditing ? "Updated!" : "Created!"); setShowModal(false); fetchData(); } catch (error) { alert("Operation Failed"); } };
+  const handleFormSubmit = async (e) => { e.preventDefault(); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; const payload = { ...formData, description: formData.shortDescription, image: formData.images[0] || '' }; if (isEditing) await axios.put(`${API_URL}/api/products/${formData._id}`, payload, config); else await axios.post(`${API_URL}/api/products`, payload, config); toast.success(isEditing ? "Updated!" : "Created!"); setShowModal(false); fetchData(); } catch (error) { toast.error("Operation Failed"); } };
   const handleChange = (e) => { const { name, value, type, checked } = e.target; if (name === 'category') { const newSubs = CATEGORY_DATA[value] || []; setFormData(prev => ({ ...prev, category: value, subCategory: newSubs[0] || '' })); } else { setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); } };
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -344,44 +347,92 @@ const AdminDashboardPage = () => {
       .map(({ name, revenue }) => ({ name, revenue }));
   })();
 
+  const ADMIN_TABS = ['Dashboard', 'Products', 'Inventory', 'Orders', 'Messages', 'Users', 'Settings'];
+  const tabIcon = (item) => {
+    if (item === 'Dashboard') return <FaBox />;
+    if (item === 'Products') return <FaBox />;
+    if (item === 'Inventory') return <FaClipboardList />;
+    if (item === 'Orders') return <FaShoppingCart />;
+    if (item === 'Messages') return <FaEnvelopeOpenText />;
+    if (item === 'Users') return <FaUsers />;
+    if (item === 'Settings') return <FaCog />;
+    return null;
+  };
+
+  const NavLinks = ({ onNavigate }) => (
+    <nav className="mt-6 px-4 space-y-2">
+      {ADMIN_TABS.map((item) => (
+        <button
+          key={item}
+          onClick={() => { setActiveTab(item); onNavigate && onNavigate(); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors relative ${activeTab === item ? 'bg-gray-100 text-nyoranixRed' : 'text-gray-600 hover:bg-gray-50'}`}
+        >
+          {tabIcon(item)}
+          {item}
+          {item === 'Messages' && messages.filter(m => !m.isRead).length > 0 && (
+            <span className="ml-auto bg-nyoranixRed text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {messages.filter(m => !m.isRead).length}
+            </span>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans text-gray-800 relative">
+      {/* Mobile top bar with hamburger - only visible below lg */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="bg-nyoranixRed w-8 h-8 rounded flex items-center justify-center text-white font-bold">N</div>
+          <span className="font-bold text-gray-800">Nyoranix Admin</span>
+        </div>
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="p-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+          aria-label="Open admin menu"
+        >
+          <FaBars size={20} />
+        </button>
+      </div>
+
+      {/* Mobile slide-in nav drawer */}
+      {mobileNavOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileNavOpen(false)}></div>
+          <aside className="relative w-72 max-w-[80%] bg-white h-full shadow-xl overflow-y-auto">
+            <div className="p-6 flex items-center justify-between border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="bg-nyoranixRed w-8 h-8 rounded flex items-center justify-center text-white font-bold">N</div>
+                <span className="text-lg font-bold text-gray-800">Nyoranix Admin</span>
+              </div>
+              <button onClick={() => setMobileNavOpen(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                <FaTimes />
+              </button>
+            </div>
+            <NavLinks onNavigate={() => setMobileNavOpen(false)} />
+          </aside>
+        </div>
+      )}
+
       {/* Sidebar and Main Content Wrapper */}
       <aside className="w-64 bg-white border-r border-gray-200 hidden lg:block fixed h-full z-10">
         <div className="p-6 flex items-center gap-2 border-b border-gray-100">
           <div className="bg-nyoranixRed w-8 h-8 rounded flex items-center justify-center text-white font-bold">N</div>
           <span className="text-xl font-bold text-gray-800">Nyoranix Admin</span>
         </div>
-        <nav className="mt-6 px-4 space-y-2">
-          {['Dashboard', 'Products', 'Inventory', 'Orders', 'Messages', 'Users', 'Settings'].map((item) => (
-            <button key={item} onClick={() => setActiveTab(item)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors relative ${activeTab === item ? 'bg-gray-100 text-nyoranixRed' : 'text-gray-600 hover:bg-gray-50'}`}>
-              {item === 'Dashboard' && <FaBox />}
-              {item === 'Products' && <FaBox />}
-              {item === 'Inventory' && <FaClipboardList />}
-              {item === 'Orders' && <FaShoppingCart />}
-              {item === 'Messages' && <FaEnvelopeOpenText />}
-              {item === 'Users' && <FaUsers />}
-              {item === 'Settings' && <FaCog />}
-              {item}
-              {item === 'Messages' && messages.filter(m => !m.isRead).length > 0 && (
-                <span className="ml-auto bg-nyoranixRed text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                  {messages.filter(m => !m.isRead).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
+        <NavLinks />
       </aside>
 
-      <main className="flex-1 lg:ml-64 p-8">
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{activeTab}</h1>
-          <div className="flex items-center gap-4"><span className="font-bold text-sm">Admin: {userInfo?.name}</span></div>
+      <main className="flex-1 lg:ml-64 p-4 pt-20 lg:pt-8 lg:p-8">
+        <header className="flex justify-between items-center mb-8 flex-wrap gap-2">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{activeTab}</h1>
+          <div className="flex items-center gap-4"><span className="font-bold text-xs lg:text-sm truncate max-w-[150px] lg:max-w-none">Admin: {userInfo?.name}</span></div>
         </header>
 
         {activeTab === 'Dashboard' && (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
               <StatCard title="Total Sales" value={`₹${totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<FaWallet />} color="green" />
               <StatCard title="Orders" value={orders.length} icon={<FaShoppingCart />} color="blue" />
               <StatCard title="Users" value={users.length} icon={<FaUsers />} color="orange" />
@@ -404,7 +455,7 @@ const AdminDashboardPage = () => {
         {activeTab === 'Products' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center flex-wrap gap-4">
-              <div className="relative"><FaSearch className="absolute left-3 top-3 text-gray-400" /><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg text-sm w-64 focus:outline-none focus:border-nyoranixRed" /></div>
+              <div className="relative w-full sm:w-64"><FaSearch className="absolute left-3 top-3 text-gray-400" /><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg text-sm w-full focus:outline-none focus:border-nyoranixRed" /></div>
               <div className="flex gap-2">
                 {/* 4. NEW BULK UPLOAD BUTTON */}
                 <button onClick={() => setShowBulkModal(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition-colors shadow-sm">
@@ -422,7 +473,7 @@ const AdminDashboardPage = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center flex-wrap gap-4">
               <h3 className="font-bold text-gray-800 flex items-center gap-2"><FaClipboardList className="text-blue-600" /> Inventory Management</h3>
-              <div className="relative"><FaSearch className="absolute left-3 top-3 text-gray-400" /><input type="text" placeholder="Search SKU or Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg text-sm w-64 focus:outline-none focus:border-blue-500" /></div>
+              <div className="relative w-full sm:w-64"><FaSearch className="absolute left-3 top-3 text-gray-400" /><input type="text" placeholder="Search SKU or Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg text-sm w-full focus:outline-none focus:border-blue-500" /></div>
             </div>
             <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-500 uppercase font-medium"><tr><th className="px-6 py-3">Product Name</th><th className="px-6 py-3">SKU / ID</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Current Stock</th><th className="px-6 py-3 text-right">Quick Update</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredProducts.map((p) => { const stock = p.countInStock || 0; const isLow = stock > 0 && stock < 10; const isOut = stock === 0; return (<tr key={p._id} className="hover:bg-gray-50 group"><td className="px-6 py-4 font-bold text-gray-800 flex items-center gap-3"><div className="w-10 h-10 rounded border bg-gray-50 flex items-center justify-center overflow-hidden"><img src={p.images?.[0] || p.image} className="w-full h-full object-cover" alt="" /></div><div><p>{p.name}</p><p className="text-xs text-gray-400 font-normal">{p.category}</p></div></td><td className="px-6 py-4 text-xs text-gray-500 font-mono">{p._id.substring(p._id.length - 8).toUpperCase()}</td><td className="px-6 py-4">{isOut ? (<span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaTimesCircle /> Out of Stock</span>) : isLow ? (<span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaExclamationTriangle /> Low Stock</span>) : (<span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaCheck /> In Stock</span>)}</td><td className="px-6 py-4"><input type="number" min="0" defaultValue={stock} id={`stock-input-${p._id}`} className={`border rounded w-24 p-2 text-center font-bold focus:ring-2 outline-none ${isOut ? 'border-red-300 bg-red-50' : 'border-gray-300'}`} /></td><td className="px-6 py-4 text-right"><button onClick={() => { const val = document.getElementById(`stock-input-${p._id}`).value; handleQuickStockUpdate(p._id, val); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm">Save</button></td></tr>); })}</tbody></table>{filteredProducts.length === 0 && <div className="p-10 text-center text-gray-400">No products found matching your search.</div>}</div>
           </div>
@@ -693,9 +744,9 @@ const AdminDashboardPage = () => {
 };
 
 const StatCard = ({ title, value, icon, color }) => (
-  <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-    <div><p className="text-gray-500 text-sm font-medium">{title}</p><h3 className="text-2xl font-bold text-gray-900">{value}</h3></div>
-    <div className={`text-${color}-500 text-2xl`}>{icon}</div>
+  <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between gap-2">
+    <div className="min-w-0"><p className="text-gray-500 text-xs sm:text-sm font-medium truncate">{title}</p><h3 className="text-lg sm:text-2xl font-bold text-gray-900 break-words">{value}</h3></div>
+    <div className={`text-${color}-500 text-xl sm:text-2xl flex-shrink-0`}>{icon}</div>
   </div>
 );
 

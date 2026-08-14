@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import { setCredentials } from '../redux/slices/userSlice';
-import toast from 'react-hot-toast'; // Assuming you have toast installed or use setMessage
+import toast from 'react-hot-toast';
 
 const RegisterPage = () => {
   const [name, setName] = useState('');
@@ -39,10 +39,12 @@ const RegisterPage = () => {
       const { data } = await axios.post(`${API_URL}/api/users/resend-otp`, { email });
       setLoading(false);
       setMessage(null);
-      alert(data.message || `OTP resent to ${email}`);
+      toast.success(data.message || `OTP resent to ${email}`);
     } catch (err) {
       setLoading(false);
-      setMessage(err.response?.data?.message || err.message);
+      const msg = err.response?.data?.message || err.message;
+      setMessage(msg);
+      toast.error(msg);
     }
   };
 
@@ -62,11 +64,12 @@ const RegisterPage = () => {
           setLoading(false);
           setStep(2); // Move to OTP step
           setMessage(null);
-          // Use toast if available, otherwise just UI update
-          alert(`OTP sent to ${email}`);
+          toast.success(`OTP sent to ${email}`);
         } catch (err) {
           setLoading(false);
-          setMessage(err.response?.data?.message || err.message);
+          const msg = err.response?.data?.message || err.message;
+          setMessage(msg);
+          toast.error(msg);
         }
       }
     }

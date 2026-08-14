@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { confirmToast } from '../utils/confirmToast';
 import { addToCart } from '../redux/slices/cartSlice';
 // === 1. ADD WHATSAPP ICON ===
 import {
@@ -128,7 +129,7 @@ const ProductDetailsPage = () => {
   }
 
   const handleDeleteReview = async (reviewId) => {
-    if (window.confirm("Are you sure you want to delete your review?")) {
+    if (await confirmToast("Are you sure you want to delete your review?", "Delete")) {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         await axios.delete(`${API_URL}/api/products/${id}/reviews/${reviewId}`, config);
