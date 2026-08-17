@@ -39,9 +39,28 @@ const InvoicePage = () => {
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfPageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      // If the invoice is taller than one A4 page (e.g. an order with many
+      // line items), a single addImage() call silently clips everything
+      // past the first page - the rest just doesn't appear in the PDF.
+      // Splitting across multiple pages: draw the full-height image on each
+      // page at a progressively larger negative Y offset, so each page
+      // reveals the correct "slice" clipped by that page's boundary.
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfPageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfPageHeight;
+      }
+
       pdf.save(`invoice_${order._id}.pdf`);
     });
   };

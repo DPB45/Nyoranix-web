@@ -81,6 +81,42 @@ const addOrderItems = async (req, res) => {
 
     const round2 = (n) => Math.round(n * 100) / 100;
 
+    // === Atomically reserve stock for every item before creating the order ===
+    // The countInStock check above reads a snapshot that can go stale: if two
+    // customers check out the last unit of the same product at nearly the
+    // same time, both checks could pass before either decrement runs, and
+    // both orders would succeed - overselling. Using a conditional filter
+    // (only decrement if enough stock still exists) makes each reservation
+    // atomic at the database level. If any item's reservation fails partway
+    // through, roll back whatever already succeeded so stock stays accurate
+    // and no order is created for an over-committed cart.
+    const reserved = [];
+    let stockError = null;
+
+    for (const item of verifiedItems) {
+      const updated = await Product.findOneAndUpdate(
+        { _id: item.product, countInStock: { $gte: item.quantity } },
+        { $inc: { countInStock: -item.quantity } },
+        { new: true }
+      );
+
+      if (!updated) {
+        stockError = `${item.name} just went out of stock - please update your cart`;
+        break;
+      }
+      reserved.push(item);
+    }
+
+    if (stockError) {
+      // Roll back any reservations that DID succeed before the failure
+      await Promise.all(
+        reserved.map((item) =>
+          Product.updateOne({ _id: item.product }, { $inc: { countInStock: item.quantity } })
+        )
+      );
+      return res.status(409).json({ message: stockError });
+    }
+
     const order = new Order({
       orderItems: verifiedItems,
       user: req.user._id,
@@ -93,14 +129,19 @@ const addOrderItems = async (req, res) => {
       totalPrice: round2(totalPrice),
     });
 
-    // Decrement stock now that the order is confirmed
-    await Promise.all(
-      verifiedItems.map((item) =>
-        Product.updateOne({ _id: item.product }, { $inc: { countInStock: -item.quantity } })
-      )
-    );
+    let createdOrder;
+    try {
+      createdOrder = await order.save();
+    } catch (saveError) {
+      // Order failed to save after stock was already reserved - give it back
+      await Promise.all(
+        verifiedItems.map((item) =>
+          Product.updateOne({ _id: item.product }, { $inc: { countInStock: item.quantity } })
+        )
+      );
+      throw saveError;
+    }
 
-    const createdOrder = await order.save();
     res.status(201).json(createdOrder);
   } catch (error) {
     console.error("Order Creation Failed:", error.message);
