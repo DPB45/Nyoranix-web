@@ -1,8 +1,14 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+// Cart persistence is handled entirely by redux-persist (see redux/store.js,
+// which whitelists the 'cart' slice) and PersistGate in main.jsx. The manual
+// localStorage.setItem/getItem calls that used to live in every reducer here
+// were a second, redundant persistence mechanism writing to a different key -
+// harmless in practice, but pointless duplication. Removed in favor of the
+// one real mechanism.
 const initialState = {
-  cartItems: localStorage.getItem('cartItems') ? JSON.parse(localStorage.getItem('cartItems')) : [],
-  shippingAddress: localStorage.getItem('shippingAddress') ? JSON.parse(localStorage.getItem('shippingAddress')) : {},
+  cartItems: [],
+  shippingAddress: {},
   paymentMethod: 'PayPal',
 };
 
@@ -26,13 +32,15 @@ const cartSlice = createSlice({
           x.id === existItem.id ? { ...item, quantity: finalQuantity } : x
         );
       } else {
-        state.cartItems = [...state.cartItems, item];
+        // Cap brand-new lines to available stock too - previously only the
+        // "merge into existing line" branch above enforced this.
+        const cap = item.countInStock;
+        const finalQuantity = cap ? Math.min(item.quantity, cap) : item.quantity;
+        state.cartItems = [...state.cartItems, { ...item, quantity: finalQuantity }];
       }
-      localStorage.setItem('cartItems', JSON.stringify(state.cartItems));
     },
     removeFromCart: (state, action) => {
       state.cartItems = state.cartItems.filter((x) => x.id !== action.payload);
-      localStorage.setItem('cartItems', JSON.stringify(state.cartItems));
     },
     updateQuantity: (state, action) => {
       const { id, quantity } = action.payload;
@@ -40,21 +48,17 @@ const cartSlice = createSlice({
       if (item) {
         item.quantity = quantity;
       }
-      localStorage.setItem('cartItems', JSON.stringify(state.cartItems));
     },
     saveShippingAddress: (state, action) => {
       state.shippingAddress = action.payload;
-      localStorage.setItem('shippingAddress', JSON.stringify(action.payload));
     },
     savePaymentMethod: (state, action) => {
       state.paymentMethod = action.payload;
-      localStorage.setItem('paymentMethod', JSON.stringify(action.payload));
     },
 
     // === DEFINITION: Clearing the cart ===
     clearCartItems: (state) => {
       state.cartItems = [];
-      localStorage.removeItem('cartItems');
     },
   },
 });

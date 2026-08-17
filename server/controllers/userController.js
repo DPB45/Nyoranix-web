@@ -226,20 +226,23 @@ const resetPassword = async (req, res) => {
 // @route   GET /api/users/profile
 // @access  Private
 const getUserProfile = async (req, res) => {
-    const user = await User.findById(req.user._id);
+    try {
+        const user = await User.findById(req.user._id);
 
-    if (user) {
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            isAdmin: user.isAdmin,
-            mobile: user.mobile,
-            addresses: user.addresses,
-        });
-    } else {
-        res.status(404);
-        throw new Error('User not found');
+        if (user) {
+            res.json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                mobile: user.mobile,
+                addresses: user.addresses,
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
@@ -247,29 +250,38 @@ const getUserProfile = async (req, res) => {
 // @route   PUT /api/users/profile
 // @access  Private
 const updateUserProfile = async (req, res) => {
-    const user = await User.findById(req.user._id);
+    try {
+        const user = await User.findById(req.user._id);
 
-    if (user) {
-        user.name = req.body.name || user.name;
-        user.email = req.body.email || user.email;
-        if (req.body.mobile !== undefined) {
-            user.mobile = req.body.mobile;
+        if (user) {
+            user.name = req.body.name || user.name;
+            user.email = req.body.email || user.email;
+            if (req.body.mobile !== undefined) {
+                user.mobile = req.body.mobile;
+            }
+            if (req.body.password) {
+                user.password = req.body.password;
+            }
+            const updatedUser = await user.save();
+            res.json({
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                isAdmin: updatedUser.isAdmin,
+                mobile: updatedUser.mobile,
+                addresses: updatedUser.addresses,
+                token: generateToken(updatedUser._id),
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
         }
-        if (req.body.password) {
-            user.password = req.body.password;
+    } catch (error) {
+        // Duplicate key error - most commonly hit when changing your email
+        // to one that's already registered to another account
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'That email is already in use' });
         }
-        const updatedUser = await user.save();
-        res.json({
-            _id: updatedUser._id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            isAdmin: updatedUser.isAdmin,
-            mobile: updatedUser.mobile,
-            addresses: updatedUser.addresses,
-            token: generateToken(updatedUser._id),
-        });
-    } else {
-        res.status(404).json({ message: 'User not found' });
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
@@ -277,44 +289,56 @@ const updateUserProfile = async (req, res) => {
 // @route   POST /api/users/address
 // @access  Private
 const addUserAddress = async (req, res) => {
-    const { address, city, postalCode, country } = req.body;
+    try {
+        const { address, city, postalCode, country } = req.body;
 
-    if (!address || !city) {
-        return res.status(400).json({ message: 'Address and city are required' });
+        if (!address || !city) {
+            return res.status(400).json({ message: 'Address and city are required' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.addresses.push({ address, city, postalCode, country: country || 'India' });
+        await user.save();
+        res.status(201).json({ addresses: user.addresses });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error: Could not save address' });
     }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-    }
-
-    user.addresses.push({ address, city, postalCode, country: country || 'India' });
-    await user.save();
-    res.status(201).json({ addresses: user.addresses });
 };
 
 // @desc    Delete a saved address
 // @route   DELETE /api/users/address/:addressId
 // @access  Private
 const deleteUserAddress = async (req, res) => {
-    const user = await User.findById(req.user._id);
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-    }
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
-    user.addresses = user.addresses.filter(
-        (addr) => addr._id.toString() !== req.params.addressId
-    );
-    await user.save();
-    res.json({ addresses: user.addresses });
+        user.addresses = user.addresses.filter(
+            (addr) => addr._id.toString() !== req.params.addressId
+        );
+        await user.save();
+        res.json({ addresses: user.addresses });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error: Could not delete address' });
+    }
 };
 
 // @desc    Get all users (Admin)
 // @route   GET /api/users
 // @access  Private/Admin
 const getUsers = async (req, res) => {
-    const users = await User.find({});
-    res.json(users);
+    try {
+        const users = await User.find({});
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
 };
 
 // @desc    Delete user

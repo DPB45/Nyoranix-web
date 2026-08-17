@@ -14,6 +14,19 @@ const CheckoutPage = () => {
   const { cartItems } = useSelector((state) => state.cart);
   const { userInfo } = useSelector((state) => state.user);
 
+  // Guards against landing on /checkout directly with an empty cart (e.g. a
+  // stale bookmark, browser back button, or refreshing after already
+  // ordering) - redirects to the cart instead of showing a confusing
+  // zero-item, zero-total checkout. Mount-only on purpose: placing an order
+  // clears the cart right before navigating to the order page, and this
+  // shouldn't fire and redirect mid-flight during that transition.
+  useEffect(() => {
+    if (cartItems.length === 0) {
+      navigate('/cart');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // === 1. STATE MANAGEMENT ===
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);

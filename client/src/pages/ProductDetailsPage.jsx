@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
+import { confirmToast } from '../utils/confirmToast';
 // === 1. ADD WHATSAPP ICON ===
 import {
   FaStar, FaCheckCircle, FaShoppingCart, FaBoxOpen, FaInfoCircle,
@@ -58,6 +59,7 @@ const ProductDetailsPage = () => {
     fetchProductData();
     window.scrollTo(0, 0);
     setActiveTab('Description');
+    setQuantity(1);
   }, [id]);
 
   // Pre-fill the review form if this user already has a review on this
@@ -128,7 +130,7 @@ const ProductDetailsPage = () => {
   }
 
   const handleDeleteReview = async (reviewId) => {
-    if (window.confirm("Are you sure you want to delete your review?")) {
+    if (await confirmToast("Are you sure you want to delete your review?", "Delete")) {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         await axios.delete(`${API_URL}/api/products/${id}/reviews/${reviewId}`, config);

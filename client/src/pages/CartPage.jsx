@@ -62,7 +62,7 @@ const CartPage = () => {
 
                 {/* Details */}
                 <div className="flex-1">
-                  <Link to={`/product/${item.product}`} className="text-lg font-bold text-gray-800 hover:text-blue-600 line-clamp-1">
+                  <Link to={`/product/${item.id}`} className="text-lg font-bold text-gray-800 hover:text-blue-600 line-clamp-1">
                     {item.name}
                   </Link>
                   <p className="text-gray-500 text-sm mb-2">Unit Price: ₹{item.price}</p>

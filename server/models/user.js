@@ -33,11 +33,17 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 
 // Middleware to hash password before saving
 userSchema.pre('save', async function (next) {
+    // Without this return, execution fell through to the hashing lines
+    // below EVERY time a document was saved - even when password wasn't
+    // touched. That re-hashed the already-hashed value on top of itself,
+    // permanently corrupting it, since bcrypt.compare() at login would then
+    // compare the real password against a hash-of-a-hash and always fail.
     if (!this.isModified('password')) {
-        next();
+        return next();
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
 });
 
 module.exports = mongoose.model('User', userSchema);

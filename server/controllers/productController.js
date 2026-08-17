@@ -243,13 +243,32 @@ const deleteProductReview = async (req, res) => {
 
 module.exports = {
   getProducts: async (req, res) => {
-    const filter = {};
-    if (req.query.isNewArrival === 'true') filter.isNewArrival = true;
-    const products = await require('../models/product').find(filter);
-    res.json(products);
+    try {
+      const filter = {};
+      if (req.query.isNewArrival === 'true') filter.isNewArrival = true;
+      const products = await require('../models/product').find(filter);
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ message: 'Server Error: Could not fetch products' });
+    }
   },
-  getProductById: async (req, res) => { const product = await require('../models/product').findById(req.params.id); if(product) res.json(product); else res.status(404).json({message: 'Not found'}); },
-  deleteProduct: async (req, res) => { await require('../models/product').deleteOne({_id: req.params.id}); res.json({message: 'Removed'}); },
+  getProductById: async (req, res) => {
+    try {
+      const product = await require('../models/product').findById(req.params.id);
+      if (product) res.json(product);
+      else res.status(404).json({ message: 'Not found' });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid product ID' });
+    }
+  },
+  deleteProduct: async (req, res) => {
+    try {
+      await require('../models/product').deleteOne({ _id: req.params.id });
+      res.json({ message: 'Removed' });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid product ID' });
+    }
+  },
   createProduct,
   updateProduct,
   createProductReview,

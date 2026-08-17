@@ -21,7 +21,8 @@ const Navbar = () => {
   // === 2. GET CURRENT LOCATION ===
   const location = useLocation();
 
-  const { totalQuantity } = useSelector((state) => state.cart);
+  const { cartItems } = useSelector((state) => state.cart);
+  const totalQuantity = cartItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const { userInfo } = useSelector((state) => state.user);
 
   const getUserName = () => {
@@ -76,7 +77,6 @@ const Navbar = () => {
     { name: "Home", path: "/" },
     { name: "Products", path: "/shop" },
     { name: "Solutions", path: "/solutions" },
-    { name: "Documents", path: "/documents" },
     { name: "About", path: "/about" },
     { name: "Support", path: "/contact" },
   ];

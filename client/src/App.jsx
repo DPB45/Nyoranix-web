@@ -31,6 +31,7 @@ const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage')
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const TermsAndConditionsPage = lazy(() => import('./pages/TermsAndConditionsPage'));
 const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -88,6 +89,9 @@ function App() {
             <Route element={<AdminRoute />}>
               <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
             </Route>
+
+            {/* Catch-all - must stay last */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </main>
