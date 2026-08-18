@@ -33,16 +33,23 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 
 // Middleware to hash password before saving
 userSchema.pre('save', async function (next) {
-    // Without this return, execution fell through to the hashing lines
-    // below EVERY time a document was saved - even when password wasn't
-    // touched. That re-hashed the already-hashed value on top of itself,
-    // permanently corrupting it, since bcrypt.compare() at login would then
-    // compare the real password against a hash-of-a-hash and always fail.
+    // If the password field wasn't touched on this save (e.g. saving after
+    // OTP verification, adding an address, or any other unrelated update),
+    // skip hashing entirely and move on - critically, this must RETURN so
+    // the code below never runs, otherwise the already-hashed password gets
+    // hashed again on every single save, permanently corrupting it and
+    // locking the user out (bcrypt.compare against the double-hash will
+    // never match their real password again).
     if (!this.isModified('password')) {
         return next();
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    // Must explicitly call next() here too - Mongoose treats a pre-save
+    // hook that declares a `next` parameter as callback-style and waits
+    // for it to be invoked; without this the save() call would hang
+    // indefinitely whenever the password actually is being set (i.e.
+    // registration and password reset).
     next();
 });
 

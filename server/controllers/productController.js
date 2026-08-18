@@ -246,27 +246,37 @@ module.exports = {
     try {
       const filter = {};
       if (req.query.isNewArrival === 'true') filter.isNewArrival = true;
-      const products = await require('../models/product').find(filter);
+      const products = await Product.find(filter);
       res.json(products);
     } catch (error) {
-      res.status(500).json({ message: 'Server Error: Could not fetch products' });
+      console.error(error);
+      res.status(500).json({ message: 'Server Error' });
     }
   },
   getProductById: async (req, res) => {
     try {
-      const product = await require('../models/product').findById(req.params.id);
+      const product = await Product.findById(req.params.id);
       if (product) res.json(product);
       else res.status(404).json({ message: 'Not found' });
     } catch (error) {
-      res.status(400).json({ message: 'Invalid product ID' });
+      // Most common cause: a malformed :id (not a valid ObjectId) throws a
+      // CastError here. Without this catch, that error is an unhandled
+      // rejection - Express 4 never routes it to the error middleware, so
+      // the request just hangs instead of returning a clean 404/400.
+      console.error(error);
+      res.status(404).json({ message: 'Product not found' });
     }
   },
   deleteProduct: async (req, res) => {
     try {
-      await require('../models/product').deleteOne({ _id: req.params.id });
+      const deleted = await Product.deleteOne({ _id: req.params.id });
+      if (deleted.deletedCount === 0) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
       res.json({ message: 'Removed' });
     } catch (error) {
-      res.status(400).json({ message: 'Invalid product ID' });
+      console.error(error);
+      res.status(400).json({ message: 'Invalid product id' });
     }
   },
   createProduct,

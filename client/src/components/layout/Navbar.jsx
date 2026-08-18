@@ -22,7 +22,7 @@ const Navbar = () => {
   const location = useLocation();
 
   const { cartItems } = useSelector((state) => state.cart);
-  const totalQuantity = cartItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
+  const totalQuantity = cartItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
   const { userInfo } = useSelector((state) => state.user);
 
   const getUserName = () => {

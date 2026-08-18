@@ -81,13 +81,25 @@ const addOrderItems = async (req, res) => {
 
     const round2 = (n) => Math.round(n * 100) / 100;
 
+    const order = new Order({
+      orderItems: verifiedItems,
+      user: req.user._id,
+      shippingAddress,
+      paymentMethod,
+      paymentReference: paymentMethod === 'Online' ? paymentReference.trim() : undefined,
+      itemsPrice: round2(itemsPrice),
+      shippingPrice: round2(shippingPrice),
+      taxPrice: round2(taxPrice),
+      totalPrice: round2(totalPrice),
+    });
+
     // === Atomically reserve stock for every item before creating the order ===
-    // The countInStock check above reads a snapshot that can go stale: if two
+    // A plain stock check earlier reads a snapshot that can go stale: if two
     // customers check out the last unit of the same product at nearly the
     // same time, both checks could pass before either decrement runs, and
-    // both orders would succeed - overselling. Using a conditional filter
-    // (only decrement if enough stock still exists) makes each reservation
-    // atomic at the database level. If any item's reservation fails partway
+    // both orders would succeed - overselling. A conditional filter (only
+    // decrement if enough stock still exists) makes each reservation atomic
+    // at the database level. If any item's reservation fails partway
     // through, roll back whatever already succeeded so stock stays accurate
     // and no order is created for an over-committed cart.
     const reserved = [];
@@ -108,7 +120,6 @@ const addOrderItems = async (req, res) => {
     }
 
     if (stockError) {
-      // Roll back any reservations that DID succeed before the failure
       await Promise.all(
         reserved.map((item) =>
           Product.updateOne({ _id: item.product }, { $inc: { countInStock: item.quantity } })
@@ -116,18 +127,6 @@ const addOrderItems = async (req, res) => {
       );
       return res.status(409).json({ message: stockError });
     }
-
-    const order = new Order({
-      orderItems: verifiedItems,
-      user: req.user._id,
-      shippingAddress,
-      paymentMethod,
-      paymentReference: paymentMethod === 'Online' ? paymentReference.trim() : undefined,
-      itemsPrice: round2(itemsPrice),
-      shippingPrice: round2(shippingPrice),
-      taxPrice: round2(taxPrice),
-      totalPrice: round2(totalPrice),
-    });
 
     let createdOrder;
     try {

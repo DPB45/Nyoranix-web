@@ -10,6 +10,11 @@ const protect = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             req.user = await User.findById(decoded.id).select('-password');
 
+            // The token was valid, but the account it points to no longer
+            // exists (e.g. deleted by an admin) - without this check every
+            // downstream handler that reads req.user._id would throw a
+            // TypeError on null, which (since most handlers have no
+            // try/catch) leaves the request hanging instead of a clean 401.
             if (!req.user) {
                 return res.status(401).json({ message: 'Not authorized, user no longer exists' });
             }

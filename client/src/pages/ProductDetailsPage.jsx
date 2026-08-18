@@ -60,6 +60,7 @@ const ProductDetailsPage = () => {
     window.scrollTo(0, 0);
     setActiveTab('Description');
     setQuantity(1);
+    setActiveImage(0);
   }, [id]);
 
   // Pre-fill the review form if this user already has a review on this

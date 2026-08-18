@@ -1,11 +1,10 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 // Cart persistence is handled entirely by redux-persist (see redux/store.js,
-// which whitelists the 'cart' slice) and PersistGate in main.jsx. The manual
-// localStorage.setItem/getItem calls that used to live in every reducer here
-// were a second, redundant persistence mechanism writing to a different key -
-// harmless in practice, but pointless duplication. Removed in favor of the
-// one real mechanism.
+// which whitelists the 'cart' slice) and PersistGate in main.jsx. Manual
+// localStorage calls here would be a second, redundant persistence
+// mechanism writing to a different key - removed in favor of the one real
+// mechanism.
 const initialState = {
   cartItems: [],
   shippingAddress: {},
@@ -32,11 +31,13 @@ const cartSlice = createSlice({
           x.id === existItem.id ? { ...item, quantity: finalQuantity } : x
         );
       } else {
-        // Cap brand-new lines to available stock too - previously only the
-        // "merge into existing line" branch above enforced this.
+        // Also cap a brand-new line item against its known stock - without
+        // this, a stale quantity carried over from the product page (see
+        // ProductDetailsPage's id-change reset fix) could add more units
+        // than are actually in stock straight into the cart.
         const cap = item.countInStock;
-        const finalQuantity = cap ? Math.min(item.quantity, cap) : item.quantity;
-        state.cartItems = [...state.cartItems, { ...item, quantity: finalQuantity }];
+        const initialQuantity = cap ? Math.min(item.quantity, cap) : item.quantity;
+        state.cartItems = [...state.cartItems, { ...item, quantity: initialQuantity }];
       }
     },
     removeFromCart: (state, action) => {

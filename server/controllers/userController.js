@@ -14,28 +14,33 @@ const generateToken = (id) => {
 // @route   POST /api/users/login
 // @access  Public
 const authUser = async (req, res) => {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
 
-    // Check if user exists, password matches, AND is verified
-    if (user && (await user.matchPassword(password))) {
-        if (user.isVerified === false) {
-            return res.status(403).json({
-                message: 'Please verify your email before logging in. Check your inbox for the OTP, or register again to get a new code.'
+        // Check if user exists, password matches, AND is verified
+        if (user && (await user.matchPassword(password))) {
+            if (user.isVerified === false) {
+                return res.status(403).json({
+                    message: 'Please verify your email before logging in. Check your inbox for the OTP, or register again to get a new code.'
+                });
+            }
+
+            res.json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                isAdmin: user.isAdmin,
+                mobile: user.mobile,
+                addresses: user.addresses,
+                token: generateToken(user._id),
             });
+        } else {
+            res.status(401).json({ message: 'Invalid email or password' });
         }
-
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            isAdmin: user.isAdmin,
-            mobile: user.mobile,
-            addresses: user.addresses,
-            token: generateToken(user._id),
-        });
-    } else {
-        res.status(401).json({ message: 'Invalid email or password' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
@@ -44,7 +49,13 @@ const authUser = async (req, res) => {
 // @access  Public
 const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
-    const existingUser = await User.findOne({ email });
+    let existingUser;
+    try {
+        existingUser = await User.findOne({ email });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Server Error' });
+    }
 
     // A verified user with this email already exists -> real conflict.
     if (existingUser && existingUser.isVerified) {
@@ -97,7 +108,11 @@ const registerUser = async (req, res) => {
         // out an existing unverified account just because this particular
         // resend failed.
         if (!existingUser) {
-            await User.deleteOne({ _id: user._id });
+            try {
+                await User.deleteOne({ _id: user._id });
+            } catch (cleanupError) {
+                console.error('Failed to clean up unverified user after email failure:', cleanupError);
+            }
         }
         console.error('Failed to send OTP email:', error);
         res.status(500).json({ message: 'Email could not be sent. Please check if the email is valid, or try again in a moment.' });
@@ -109,7 +124,13 @@ const registerUser = async (req, res) => {
 // @access  Public
 const resendOtp = async (req, res) => {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    let user;
+    try {
+        user = await User.findOne({ email });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Server Error' });
+    }
 
     if (!user) {
         res.status(404).json({ message: 'No pending registration found for this email.' });
@@ -123,9 +144,9 @@ const resendOtp = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = otp;
     user.otpExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
 
     try {
+        await user.save();
         await sendOtpEmail(email, otp, 'verify');
         res.json({ message: 'A new OTP has been sent to your email.' });
     } catch (error) {
@@ -140,25 +161,30 @@ const resendOtp = async (req, res) => {
 const verifyEmail = async (req, res) => {
     const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
+    try {
+        const user = await User.findOne({ email });
 
-    if (user && user.otp === otp && user.otpExpires > Date.now()) {
-      user.isVerified = true;
-      user.otp = undefined;
-      user.otpExpires = undefined;
-      await user.save();
+        if (user && user.otp === otp && user.otpExpires > Date.now()) {
+          user.isVerified = true;
+          user.otp = undefined;
+          user.otpExpires = undefined;
+          await user.save();
 
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        mobile: user.mobile,
-        addresses: user.addresses,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid or Expired OTP' });
+          res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            isAdmin: user.isAdmin,
+            mobile: user.mobile,
+            addresses: user.addresses,
+            token: generateToken(user._id),
+          });
+        } else {
+          res.status(400).json({ message: 'Invalid or Expired OTP' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
@@ -167,7 +193,13 @@ const verifyEmail = async (req, res) => {
 // @access  Public
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    let user;
+    try {
+        user = await User.findOne({ email });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Server Error' });
+    }
 
     if (!user) {
         res.status(404).json({ message: 'No account found with that email address.' });
@@ -177,9 +209,9 @@ const forgotPassword = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.resetOtp = otp;
     user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
 
     try {
+        await user.save();
         await sendOtpEmail(email, otp, 'reset');
         res.json({ message: 'A password reset code has been sent to your email.' });
     } catch (error) {
@@ -193,33 +225,38 @@ const forgotPassword = async (req, res) => {
 // @access  Public
 const resetPassword = async (req, res) => {
     const { email, otp, password } = req.body;
-    const user = await User.findOne({ email });
+    try {
+        const user = await User.findOne({ email });
 
-    if (
-        !user ||
-        !user.resetOtp ||
-        user.resetOtp !== otp ||
-        !user.resetOtpExpires ||
-        user.resetOtpExpires < Date.now()
-    ) {
-        res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
-        return;
+        if (
+            !user ||
+            !user.resetOtp ||
+            user.resetOtp !== otp ||
+            !user.resetOtpExpires ||
+            user.resetOtpExpires < Date.now()
+        ) {
+            res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
+            return;
+        }
+
+        user.password = password; // re-hashed by the pre-save hook
+        user.resetOtp = undefined;
+        user.resetOtpExpires = undefined;
+        await user.save();
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            isAdmin: user.isAdmin,
+            mobile: user.mobile,
+            addresses: user.addresses,
+            token: generateToken(user._id),
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
     }
-
-    user.password = password; // re-hashed by the pre-save hook
-    user.resetOtp = undefined;
-    user.resetOtpExpires = undefined;
-    await user.save();
-
-    res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        mobile: user.mobile,
-        addresses: user.addresses,
-        token: generateToken(user._id),
-    });
 };
 
 // @desc    Get user profile
@@ -242,6 +279,7 @@ const getUserProfile = async (req, res) => {
             res.status(404).json({ message: 'User not found' });
         }
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -276,6 +314,7 @@ const updateUserProfile = async (req, res) => {
             res.status(404).json({ message: 'User not found' });
         }
     } catch (error) {
+        console.error(error);
         // Duplicate key error - most commonly hit when changing your email
         // to one that's already registered to another account
         if (error.code === 11000) {
@@ -305,6 +344,7 @@ const addUserAddress = async (req, res) => {
         await user.save();
         res.status(201).json({ addresses: user.addresses });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error: Could not save address' });
     }
 };
@@ -325,6 +365,7 @@ const deleteUserAddress = async (req, res) => {
         await user.save();
         res.json({ addresses: user.addresses });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error: Could not delete address' });
     }
 };
@@ -337,6 +378,7 @@ const getUsers = async (req, res) => {
         const users = await User.find({});
         res.json(users);
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
