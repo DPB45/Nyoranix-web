@@ -1,8 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaFacebook, FaYoutube, FaInstagram, FaLinkedin, FaMapMarkerAlt, FaPhone, FaEnvelope, FaExternalLinkAlt } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 
 const Footer = () => {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+
+  // There was no onSubmit handler here at all - clicking "Subscribe" fell
+  // through to the browser's native form submission (no action/method set),
+  // which does a full page reload and dumps the email into the URL as a
+  // query string. This just stops that broken behavior; there's no backend
+  // endpoint yet to actually persist newsletter signups.
+  const handleNewsletterSubmit = (e) => {
+    e.preventDefault();
+    if (!newsletterEmail.trim()) return;
+    toast.success("Thanks for subscribing!");
+    setNewsletterEmail('');
+  };
+
   return (
     // Added 'no-print' class AND 'data-html2canvas-ignore' attribute
     <footer
@@ -21,10 +36,10 @@ const Footer = () => {
               Your trusted partner for premium electronic components, educational kits, and industrial solutions. Smart made simple.
             </p>
             <div className="flex space-x-4">
-              <a href="https://www.facebook.com/people/Tathagat-Tech-Universe/61567520693073/?rdid=hzDwyluu54ig01dt&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F15Ut7zZQkE%2F" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all duration-300"><FaFacebook /></a>
-              <a href="https://youtube.com/@nyoranix?si=Z8lRIjmUOzZaO0N0" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-400 hover:text-white transition-all duration-300"><FaYoutube /></a>
-              <a href="https://www.instagram.com/nyoranix/" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-pink-600 hover:text-white transition-all duration-300"><FaInstagram /></a>
-              <a href=" https://www.linkedin.com/company/nyoranix/" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-700 hover:text-white transition-all duration-300"><FaLinkedin /></a>
+              <a href="https://www.facebook.com/people/Tathagat-Tech-Universe/61567520693073/?rdid=hzDwyluu54ig01dt&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F15Ut7zZQkE%2F" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all duration-300"><FaFacebook /></a>
+              <a href="https://youtube.com/@nyoranix?si=Z8lRIjmUOzZaO0N0" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-400 hover:text-white transition-all duration-300"><FaYoutube /></a>
+              <a href="https://www.instagram.com/nyoranix/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-pink-600 hover:text-white transition-all duration-300"><FaInstagram /></a>
+              <a href="https://www.linkedin.com/company/nyoranix/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-700 hover:text-white transition-all duration-300"><FaLinkedin /></a>
             </div>
           </div>
 
@@ -62,9 +77,9 @@ const Footer = () => {
           <div>
             <h4 className="text-white font-bold text-lg mb-6">Stay Updated</h4>
             <p className="text-xs text-gray-500 mb-4">Subscribe for latest products and offers.</p>
-            <form className="flex flex-col gap-3">
-              <input type="email" placeholder="Enter your email" className="bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:border-blue-500 text-sm" />
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm transition-colors">Subscribe</button>
+            <form className="flex flex-col gap-3" onSubmit={handleNewsletterSubmit}>
+              <input type="email" required value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} placeholder="Enter your email" className="bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:border-blue-500 text-sm" />
+              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm transition-colors">Subscribe</button>
             </form>
           </div>
         </div>

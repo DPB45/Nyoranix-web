@@ -89,6 +89,13 @@ const HomePage = () => {
   };
 
   const handleAddToCart = (product) => {
+    // ShopPage already blocks this for an out-of-stock item; this page was
+    // missing the same guard, so a sold-out "new arrival" could be silently
+    // added to the cart at quantity 0 instead of showing an error.
+    if (!product.countInStock || product.countInStock <= 0) {
+      toast.error("Item is out of stock");
+      return;
+    }
     dispatch(addToCart({ ...product, id: product._id, quantity: 1 }));
     toast.success(`${product.name} added to cart!`);
   };
