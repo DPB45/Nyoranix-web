@@ -29,6 +29,7 @@ const ShopPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('search') || "";
+  const categoryParam = searchParams.get('category') || "";
 
   // === STATE MANAGEMENT ===
   const [allProducts, setAllProducts] = useState([]);
@@ -44,6 +45,18 @@ const ShopPage = () => {
   const [priceRange, setPriceRange] = useState(20000);
   const [maxPriceLimit, setMaxPriceLimit] = useState(20000);
   const [selectedCategories, setSelectedCategories] = useState([]);
+
+  // The homepage's category cards (and anything else) link here as
+  // /shop?category=X - without this, that query param was read nowhere and
+  // every category card just dumped the visitor on the full unfiltered
+  // shop page instead of that category. Effect (not a useState initializer)
+  // because navigating from one category card to another doesn't remount
+  // this page - only the query string changes.
+  useEffect(() => {
+    if (categoryParam) {
+      setSelectedCategories([categoryParam]);
+    }
+  }, [categoryParam]);
 
   // === UPDATED CATEGORIES LIST ===
   const categoriesList = [
