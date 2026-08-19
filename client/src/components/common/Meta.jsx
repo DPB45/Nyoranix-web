@@ -1,7 +1,11 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
 
-const Meta = ({ title, description, keywords }) => {
+const Meta = ({
+  title = 'Welcome to Nyoranix',
+  description = 'Premium electronic components, sensors, and robotics kits.',
+  keywords = 'electronics, robotics, arduino, sensors, iot, diy',
+}) => {
   return (
     <Helmet>
       <title>{title}</title>
@@ -14,12 +18,6 @@ const Meta = ({ title, description, keywords }) => {
       <meta property="og:type" content="website" />
     </Helmet>
   );
-};
-
-Meta.defaultProps = {
-  title: 'Welcome to Nyoranix',
-  description: 'Premium electronic components, sensors, and robotics kits.',
-  keywords: 'electronics, robotics, arduino, sensors, iot, diy',
 };
 
 export default Meta;
