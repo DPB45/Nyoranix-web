@@ -9,8 +9,7 @@ const createInquiry = async (req, res) => {
     const { name, email, subject, message } = req.body;
 
     if (!name || !email || !subject || !message) {
-      res.status(400);
-      throw new Error('Please fill in all fields');
+      return res.status(400).json({ message: 'Please fill in all fields' });
     }
 
     const inquiry = await Inquiry.create({

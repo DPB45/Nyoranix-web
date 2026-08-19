@@ -375,7 +375,7 @@ const deleteUserAddress = async (req, res) => {
 // @access  Private/Admin
 const getUsers = async (req, res) => {
     try {
-        const users = await User.find({});
+        const users = await User.find({}).select('-password -otp -otpExpires -resetOtp -resetOtpExpires');
         res.json(users);
     } catch (error) {
         console.error(error);

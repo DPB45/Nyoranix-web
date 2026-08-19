@@ -26,7 +26,12 @@ const OrderDetailsPage = () => {
         setLoading(false);
       }
     };
-    if (userInfo) fetchOrder();
+    if (userInfo) {
+      fetchOrder();
+    } else {
+      setError('Please log in to view this order.');
+      setLoading(false);
+    }
   }, [id, userInfo]);
 
   // === OPTION 1: DOWNLOAD DIRECT PDF ===

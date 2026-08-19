@@ -28,7 +28,12 @@ const InvoicePage = () => {
         setLoading(false);
       }
     };
-    if (userInfo) fetchOrder();
+    if (userInfo) {
+      fetchOrder();
+    } else {
+      setError('Please log in to view this invoice.');
+      setLoading(false);
+    }
   }, [id, userInfo]);
 
   // === 2. ADD DOWNLOAD FUNCTION ===

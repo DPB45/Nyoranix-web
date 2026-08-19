@@ -210,14 +210,12 @@ const deleteProductReview = async (req, res) => {
       const review = product.reviews.find(r => r._id.toString() === req.params.reviewId.toString());
 
       if (!review) {
-        res.status(404);
-        throw new Error('Review not found');
+        return res.status(404).json({ message: 'Review not found' });
       }
 
       // Check permissions
       if (review.user.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-        res.status(401);
-        throw new Error('Not authorized to delete this review');
+        return res.status(401).json({ message: 'Not authorized to delete this review' });
       }
 
       product.reviews = product.reviews.filter(r => r._id.toString() !== req.params.reviewId.toString());
@@ -233,11 +231,10 @@ const deleteProductReview = async (req, res) => {
       await product.save();
       res.json({ message: 'Review Removed' });
     } else {
-      res.status(404);
-      throw new Error('Product not found');
+      return res.status(404).json({ message: 'Product not found' });
     }
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
