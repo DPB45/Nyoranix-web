@@ -1,3 +1,4 @@
+import Meta from '../components/common/Meta';
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -30,6 +31,7 @@ const CartPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen bg-gray-50">
+      <Meta title="Your Cart | Nyoranix" noindex />
       <h1 className="text-3xl font-bold mb-8 text-gray-800">Shopping Cart</h1>
 
       {cartItems.length === 0 ? (

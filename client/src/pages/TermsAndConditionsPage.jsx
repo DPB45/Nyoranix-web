@@ -10,7 +10,7 @@ const TermsAndConditionsPage = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans">
-      <Meta title="Terms & Conditions | Nyoranix" description="Read the Terms and Conditions for using Nyoranix website and services." />
+      <Meta title="Terms & Conditions | Nyoranix" description="Read the Terms and Conditions for using Nyoranix website and services." path="/terms" />
 
       {/* === 1. HERO HEADER === */}
       <div className="bg-gradient-to-r from-gray-900 via-purple-900 to-gray-900 text-white pt-20 pb-32 px-4 relative overflow-hidden">

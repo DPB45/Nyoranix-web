@@ -6,6 +6,7 @@ import { useDispatch } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
+import Meta from '../components/common/Meta';
 
 // Reusable Filter Component
 const FilterSection = ({ title, children, defaultOpen = true }) => {
@@ -177,6 +178,15 @@ const ShopPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 font-sans bg-gray-50 min-h-screen">
+      <Meta
+        title={selectedCategories.length === 1
+          ? `${selectedCategories[0]} | Shop | Nyoranix`
+          : "Shop Electronic Components, Sensors & Robotics Kits | Nyoranix"}
+        description={selectedCategories.length === 1
+          ? `Browse Nyoranix's range of ${selectedCategories[0]} - quality electronic parts for makers, students, and engineers.`
+          : "Browse Nyoranix's full range of electronic components, sensors, controllers, and robotics kits. Quality parts for makers, students, and engineers."}
+        path={selectedCategories.length === 1 ? `/shop?category=${encodeURIComponent(selectedCategories[0])}` : "/shop"}
+      />
 
       {/* === LEFT SIDEBAR - FILTERS === */}
       <aside className="lg:w-1/4 pr-4 bg-white p-6 rounded-lg shadow-sm h-fit">
@@ -218,6 +228,14 @@ const ShopPage = () => {
 
       {/* === RIGHT MAIN CONTENT === */}
       <main className="lg:w-3/4">
+
+        {/* Page heading - every page needs exactly one h1. Also made
+            dynamic on the selected category so /shop?category=X reads as
+            genuinely distinct content rather than a copy of the generic
+            shop page with a filter silently applied. */}
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+          {selectedCategories.length === 1 ? selectedCategories[0] : "Shop All Products"}
+        </h1>
 
         {/* Sorting Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm">

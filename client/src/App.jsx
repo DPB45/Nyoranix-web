@@ -8,6 +8,7 @@ import Footer from './components/layout/Footer';
 import WhatsAppButton from './components/common/WhatsAppButton';
 import ScrollToTop from './components/common/ScrollToTop'; // 2. Import ScrollToTop
 import AdminRoute from './components/admin/AdminRoute';
+import { SITE_URL } from './components/common/Meta';
 
 // 3. LAZY LOAD PAGES (Replaces static imports)
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -52,6 +53,39 @@ function App() {
     <div className="flex flex-col min-h-screen font-sans bg-nyoranixWhite relative">
       <Toaster position="top-center" reverseOrder={false} />
       <ScrollToTop /> {/* 4. Add ScrollToTop here */}
+
+      {/* Site-wide LocalBusiness structured data. This belongs once per
+          site, not per-page (unlike the Meta component) - it's what lets
+          Google show your address/phone/hours in a knowledge panel and
+          feeds local ("near me") search results. Not shown on admin
+          routes since those aren't meant to be indexed at all. */}
+      {!isAdminRoute && (
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            name: "Nyoranix",
+            image: `${SITE_URL}/logo.jpg`,
+            url: SITE_URL,
+            telephone: "+91-8805006332",
+            email: "nyoranix@gmail.com",
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "Ashirwad Building, Flat No. 6, Vadgaon Bk",
+              addressRegion: "Maharashtra",
+              postalCode: "411041",
+              addressCountry: "IN",
+            },
+            openingHours: "Mo-Sa 09:00-18:00",
+            sameAs: [
+              "https://www.facebook.com/people/Tathagat-Tech-Universe/61567520693073/",
+              "https://youtube.com/@nyoranix",
+              "https://www.instagram.com/nyoranix/",
+              "https://www.linkedin.com/company/nyoranix/",
+            ],
+          })}
+        </script>
+      )}
 
       {!isAdminRoute && <Navbar />}
 

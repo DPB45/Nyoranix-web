@@ -103,7 +103,11 @@ const HomePage = () => {
   return (
     <div className="font-sans text-gray-800">
       {/* === 2. ADD META TAG HERE === */}
-      <Meta />
+      <Meta
+        title="Nyoranix | Electronic Components, Sensors & Robotics Kits"
+        description="Nyoranix is your trusted partner for premium electronic components, educational kits, and industrial solutions. Shop sensors, controllers, and robotics parts online."
+        path=""
+      />
 
       {/* 1. DYNAMIC HERO SLIDER */}
       <section className="relative h-screen w-full bg-gray-900 flex items-center justify-center overflow-hidden group">

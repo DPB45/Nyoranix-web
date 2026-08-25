@@ -10,7 +10,7 @@ const PrivacyPolicyPage = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans">
-      <Meta title="Privacy Policy | Nyoranix" description="Read the privacy policy regarding data collection, usage, and protection." />
+      <Meta title="Privacy Policy | Nyoranix" description="Read the privacy policy regarding data collection, usage, and protection." path="/privacy" />
 
       {/* === 1. HERO HEADER === */}
       <div className="bg-gradient-to-r from-gray-900 via-blue-900 to-gray-900 text-white pt-20 pb-32 px-4 relative overflow-hidden">

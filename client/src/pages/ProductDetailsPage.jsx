@@ -12,7 +12,7 @@ import {
   FaTruck, FaShieldAlt, FaShareAlt, FaThumbsUp, FaRegThumbsUp, FaUserCircle,
   FaEdit, FaTrash, FaWhatsapp, FaBolt // <--- Import FaWhatsapp
 } from 'react-icons/fa';
-import Meta from '../components/common/Meta';
+import Meta, { SITE_URL } from '../components/common/Meta';
 
 const ProductDetailsPage = () => {
   const { id } = useParams();
@@ -169,7 +169,62 @@ const ProductDetailsPage = () => {
           title={`${product.name} | Nyoranix`}
           description={product.shortDescription || product.description?.substring(0, 150)}
           keywords={`${product.category}, ${product.brand || 'Generic'}, electronics, components`}
+          path={`/product/${product._id}`}
+          image={product.images?.[0] || product.image}
         />
+      )}
+
+      {/* JSON-LD structured data - lets Google show price, stock, and star
+          ratings directly in search results instead of a plain blue link. */}
+      {product && (
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            name: product.name,
+            image: images,
+            description: product.shortDescription || product.description,
+            sku: product._id,
+            brand: {
+              "@type": "Brand",
+              name: product.brand || "Nyoranix",
+            },
+            offers: {
+              "@type": "Offer",
+              url: `${SITE_URL}/product/${product._id}`,
+              priceCurrency: "INR",
+              price: product.price,
+              availability:
+                product.countInStock > 0
+                  ? "https://schema.org/InStock"
+                  : "https://schema.org/OutOfStock",
+            },
+            ...(reviews.length > 0 && {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: product.rating || 0,
+                reviewCount: product.numReviews || reviews.length,
+              },
+            }),
+          })}
+        </script>
+      )}
+
+      {/* Breadcrumb structured data - mirrors the visual breadcrumb below.
+          Lets Google show the Home > Category > Product trail directly in
+          the search result instead of just the raw URL. */}
+      {product && (
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org/",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+              { "@type": "ListItem", position: 2, name: product.category, item: `${SITE_URL}/shop?category=${encodeURIComponent(product.category)}` },
+              { "@type": "ListItem", position: 3, name: product.name, item: `${SITE_URL}/product/${product._id}` },
+            ],
+          })}
+        </script>
       )}
 
       {/* Breadcrumb */}

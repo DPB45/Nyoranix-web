@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import Meta from '../components/common/Meta';
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -161,6 +162,7 @@ const CheckoutPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 font-sans">
+      <Meta title="Checkout | Nyoranix" noindex />
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="flex justify-between items-center mb-12 relative">
           <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 -z-10"></div>

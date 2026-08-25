@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /cart
+Disallow: /checkout
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /profile
+Disallow: /orders
+Disallow: /order/
+
+Sitemap: https://nyoranix-web-eta.vercel.app/sitemap.xml

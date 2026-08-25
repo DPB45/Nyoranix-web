@@ -2,6 +2,7 @@ import { API_URL } from '../config/api';
 import React, { useState } from 'react';
 import axios from 'axios';
 import { FaMapMarkerAlt, FaEnvelope, FaPhone, FaPaperPlane, FaUser, FaPen } from 'react-icons/fa';
+import Meta from '../components/common/Meta';
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({
@@ -79,6 +80,11 @@ const ContactPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
+      <Meta
+        title="Contact Us | Nyoranix"
+        description="Get in touch with Nyoranix for questions about electronic components, bulk orders, or support. We're based in Pune, Maharashtra."
+        path="/contact"
+      />
       {/* Header Section */}
       <div className="bg-white shadow-sm py-12 mb-10 text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500"></div>

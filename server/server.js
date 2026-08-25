@@ -45,6 +45,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/config', configRoutes);
 app.use('/api/inquiry', inquiryRoutes);
+app.use(require('./routes/sitemapRoutes')); // GET /sitemap.xml
 
 // Test Route
 app.get('/', (req, res) => {

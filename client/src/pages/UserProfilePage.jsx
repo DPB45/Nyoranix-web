@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import Meta from '../components/common/Meta';
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
@@ -128,6 +129,7 @@ const UserProfilePage = () => {
 
   return (
     <div className="container mx-auto px-4 py-10 min-h-screen bg-gray-50">
+      <Meta title="My Account | Nyoranix" noindex />
       <div className="flex flex-col md:flex-row gap-8">
 
         {/* === SIDEBAR === */}

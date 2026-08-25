@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaLaptopCode, FaIndustry, FaHandshake, FaExternalLinkAlt, FaMicrochip, FaTools, FaLightbulb } from 'react-icons/fa';
+import Meta from '../components/common/Meta';
 
 const SolutionsPage = () => {
   const partnerLink = "https://tathagatglobal.com/?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnrLXkpnvvrrlYGcTXiRRuT8-RYsnvsiDf_QBsdesheI8grG7Vnfb3WJ6-Q-k&brid=rbcvnujHlW9WwRhN4QE3AA"; // Redirect link
@@ -64,6 +65,11 @@ const SolutionsPage = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans">
+      <Meta
+        title="Solutions for Industry, Education & Makers | Nyoranix"
+        description="Nyoranix builds custom electronics, robotics, and industrial automation solutions for businesses, educators, and hobbyists."
+        path="/solutions"
+      />
 
       {/* 1. HERO SECTION */}
       <section className="bg-gray-900 text-white py-20 relative overflow-hidden">

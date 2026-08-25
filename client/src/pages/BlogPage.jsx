@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaCalendar, FaClock, FaArrowRight, FaSearch } from 'react-icons/fa';
+import Meta from '../components/common/Meta';
 
 const BlogPage = () => {
   // === MOCK DATA ===
@@ -57,6 +58,11 @@ const BlogPage = () => {
 
   return (
     <div className="bg-white min-h-screen font-sans text-gray-800">
+      <Meta
+        title="Blog | Nyoranix"
+        description="Guides, tutorials, and news on Arduino, ESP32, sensors, robotics, and DIY electronics from the Nyoranix team."
+        path="/blog"
+      />
       <div className="container mx-auto px-4 py-12 max-w-7xl">
 
         {/* === SECTION 1: HEADER & FEATURED POST === */}

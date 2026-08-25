@@ -8,7 +8,7 @@ import Meta from '../components/common/Meta';
 const RefundPolicyPage = () => {
   return (
     <div className="bg-gray-50 min-h-screen font-sans">
-      <Meta title="Refund & Return Policy | Nyoranix" description="Read the policies regarding refunds, returns, and order cancellations." />
+      <Meta title="Refund & Return Policy | Nyoranix" description="Read the policies regarding refunds, returns, and order cancellations." path="/shipping" />
 
       {/* === 1. HERO HEADER === */}
       <div className="bg-gradient-to-r from-gray-900 via-teal-900 to-gray-900 text-white pt-20 pb-32 px-4 relative overflow-hidden">

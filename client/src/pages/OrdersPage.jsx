@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import Meta from '../components/common/Meta';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux'; // 1. Import Redux
@@ -55,6 +56,7 @@ const OrdersPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-12 bg-gray-50 min-h-screen">
+      <Meta title="My Orders | Nyoranix" noindex />
       <h1 className="text-3xl font-bold text-gray-800 mb-8">My Orders</h1>
 
       {orders.length === 0 ? (

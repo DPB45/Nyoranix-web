@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Meta from '../components/common/Meta';
 // === 1. UPDATED IMPORTS FOR NEW ICONS ===
 import {
   FaCheckCircle, FaMicrochip, FaIndustry, FaUserGraduate,
@@ -103,6 +104,11 @@ const AboutPage = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
+      <Meta
+        title="About Us | Nyoranix"
+        description="Learn about Nyoranix - your trusted partner for premium electronic components, educational kits, and industrial solutions."
+        path="/about"
+      />
 
       {/* === 1. HERO HEADER (Kept as is) === */}
       <div className="bg-white shadow-sm py-16 text-center relative overflow-hidden">
