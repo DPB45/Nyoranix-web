@@ -1,3 +1,4 @@
+import Meta from '../components/common/Meta';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FaCheckCircle } from 'react-icons/fa';
@@ -5,6 +6,7 @@ import { FaCheckCircle } from 'react-icons/fa';
 const OrderSuccessPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Meta title="Order Successful | Nyoranix" noindex />
       <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-md w-full">
         <FaCheckCircle className="text-green-500 text-6xl mx-auto mb-4" />
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Order Successful!</h1>

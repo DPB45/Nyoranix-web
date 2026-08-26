@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import Meta from '../components/common/Meta';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -72,6 +73,7 @@ const OrderDetailsPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-10 bg-gray-50 min-h-screen">
+      <Meta title="Order Details | Nyoranix" noindex />
       <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-xl overflow-hidden">
 
         {/* Header */}

@@ -1,4 +1,5 @@
 import { API_URL } from '../config/api';
+import Meta from '../components/common/Meta';
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -75,6 +76,7 @@ const InvoicePage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4">
+      <Meta title="Invoice | Nyoranix" noindex />
 
       {/* Action Bar */}
       <div className="max-w-3xl mx-auto mb-6 flex justify-between items-center">

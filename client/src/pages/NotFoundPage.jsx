@@ -1,3 +1,4 @@
+import Meta from '../components/common/Meta';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FaHome, FaShoppingBag, FaExclamationTriangle } from 'react-icons/fa';
@@ -5,6 +6,7 @@ import { FaHome, FaShoppingBag, FaExclamationTriangle } from 'react-icons/fa';
 const NotFoundPage = () => {
   return (
     <div className="min-h-[70vh] flex items-center justify-center bg-gray-50 px-4">
+      <Meta title="Page Not Found | Nyoranix" noindex />
       <div className="text-center max-w-md">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
           <FaExclamationTriangle className="text-3xl text-nyoranixRed" />

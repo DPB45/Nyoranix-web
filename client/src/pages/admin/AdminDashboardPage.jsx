@@ -1,5 +1,6 @@
 import { API_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
+import Meta from '../../components/common/Meta';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -381,6 +382,7 @@ const AdminDashboardPage = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans text-gray-800 relative">
+      <Meta title="Admin Dashboard | Nyoranix" noindex />
       {/* Mobile top bar with hamburger - only visible below lg */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
