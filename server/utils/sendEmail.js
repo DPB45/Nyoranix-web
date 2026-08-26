@@ -85,7 +85,7 @@ const sendWelcomeEmail = async (email, name) => {
 
           <div style="text-align: center; margin: 30px 0;">
             <a
-              href="https://nyoranix-web.onrender.com/shop"
+              href="https://nyoranix-web-eta.vercel.app/shop"
               style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"
             >
               Start Shopping
