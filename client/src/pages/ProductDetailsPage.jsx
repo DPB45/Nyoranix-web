@@ -182,7 +182,14 @@ const ProductDetailsPage = () => {
             "@context": "https://schema.org/",
             "@type": "Product",
             name: product.name,
-            image: images,
+            // Same base64-data-URI issue as the og:image tag above: Google's
+            // structured data pipeline expects a real fetchable image URL
+            // here, not a data: URI. Filter those out; fall back to the
+            // site logo if nothing real is left so the (required) image
+            // field is never empty.
+            image: images.filter((img) => img && !img.startsWith('data:')).length > 0
+              ? images.filter((img) => img && !img.startsWith('data:'))
+              : [`${SITE_URL}/logo.jpg`],
             description: product.shortDescription || product.description,
             sku: product._id,
             brand: {
