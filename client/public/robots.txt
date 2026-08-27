@@ -1,13 +1,21 @@
 User-agent: *
 Allow: /
+
+# Cart/checkout/login/register/forgot-password/profile/orders/order pages
+# are intentionally NOT listed here as Disallow. Each of those pages already
+# carries a <meta name="robots" content="noindex, nofollow"> tag, which is
+# the correct tool for "keep this out of search results." Disallow-ing a
+# page in robots.txt prevents Googlebot from ever crawling it at all - which
+# means it can never see that page's noindex tag. For a never-indexed page
+# the noindex just goes unseen (harmless but pointless); for an
+# already-indexed page, Disallow actively blocks the one thing (a crawl
+# that discovers noindex) that would get it removed from the index. Using
+# both together fights itself - see Google's own guidance on this:
+# https://developers.google.com/search/docs/crawling-indexing/robots/robots_meta_tag
+#
+# /admin is the one exception kept here: it's authenticated-only, so a
+# crawl attempt can never render real content regardless, and blocking it
+# saves wasted crawl budget rather than fighting an indexing directive.
 Disallow: /admin
-Disallow: /cart
-Disallow: /checkout
-Disallow: /login
-Disallow: /register
-Disallow: /forgot-password
-Disallow: /profile
-Disallow: /orders
-Disallow: /order/
 
 Sitemap: https://nyoranix-web-eta.vercel.app/sitemap.xml
