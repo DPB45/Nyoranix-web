@@ -4,7 +4,35 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nyoranix</title>
+    <title>Nyoranix | Electronic Components, Sensors & Robotics Kits</title>
+
+    <!-- Static fallback meta tags. react-helmet-async (see Meta.jsx) injects
+         per-page title/description/OG tags, but it does so client-side after
+         JS runs. Search-engine and social link-preview crawlers that DON'T
+         execute JavaScript (Facebook, WhatsApp, Twitter/X, LinkedIn, Slack,
+         Discord all fetch raw HTML only) will only ever see what's here.
+         Without these, every shared link shows a blank/generic preview
+         regardless of what Meta.jsx sets for that specific page. Googlebot
+         is the exception - it does render JS, so it still picks up the
+         per-page Helmet tags with some delay. Keep these two files' default
+         values in sync. -->
+    <meta name="description" content="Nyoranix is your trusted partner for premium electronic components, educational kits, and industrial solutions. Shop sensors, controllers, and robotics parts online." />
+    <meta property="og:title" content="Nyoranix | Electronic Components, Sensors & Robotics Kits" />
+    <meta property="og:description" content="Nyoranix is your trusted partner for premium electronic components, educational kits, and industrial solutions. Shop sensors, controllers, and robotics parts online." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://nyoranix-web-eta.vercel.app/logo.jpg" />
+    <meta property="og:url" content="https://nyoranix-web-eta.vercel.app" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nyoranix | Electronic Components, Sensors & Robotics Kits" />
+    <meta name="twitter:description" content="Nyoranix is your trusted partner for premium electronic components, educational kits, and industrial solutions. Shop sensors, controllers, and robotics parts online." />
+    <meta name="twitter:image" content="https://nyoranix-web-eta.vercel.app/logo.jpg" />
+
+    <!-- Start connecting to the API domain as soon as HTML parsing begins,
+         instead of waiting for the JS bundle to load and make its first
+         request - shaves real time off when data (and therefore visible
+         content) starts arriving. -->
+    <link rel="preconnect" href="https://nyoranix-web.onrender.com" />
+    <link rel="dns-prefetch" href="https://nyoranix-web.onrender.com" />
 </head>
 <body>
 <div id="root"></div>
