@@ -10,6 +10,7 @@ const ProductCard = ({ product }) => {
         <img
           src={product.image}
           alt={product.name}
+          loading="lazy"
           className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300"
         />
         {product.isNew && (

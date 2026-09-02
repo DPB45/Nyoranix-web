@@ -254,7 +254,7 @@ const ProductDetailsPage = () => {
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2 justify-center">
                 {images.map((img, idx) => (
-                  <button key={idx} onClick={() => setActiveImage(idx)} className={`w-16 h-16 rounded-lg border-2 flex-shrink-0 overflow-hidden transition-all ${activeImage === idx ? 'border-blue-600 opacity-100' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" /></button>
+                  <button key={idx} onClick={() => setActiveImage(idx)} className={`w-16 h-16 rounded-lg border-2 flex-shrink-0 overflow-hidden transition-all ${activeImage === idx ? 'border-blue-600 opacity-100' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={img} alt={`Thumb ${idx}`} loading="lazy" className="w-full h-full object-cover" /></button>
                 ))}
               </div>
             </div>
@@ -421,7 +421,7 @@ const ProductDetailsPage = () => {
               {relatedProducts.map(prod => (
                 <Link to={`/product/${prod._id}`} key={prod._id} className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300">
                   <div className="h-48 bg-gray-50 flex items-center justify-center p-4 relative">
-                    <img src={prod.images?.[0] || prod.image} alt={prod.name} className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
+                    <img src={prod.images?.[0] || prod.image} alt={prod.name} loading="lazy" className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
                   </div>
                   <div className="p-4">
                     <span className="text-xs text-blue-600 font-bold uppercase mb-1 block">{prod.brand || "Generic"}</span>

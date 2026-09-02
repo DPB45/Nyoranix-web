@@ -268,6 +268,7 @@ const ShopPage = () => {
                         <img
                           src={product.images?.[0] || product.image || "https://via.placeholder.com/300"}
                           alt={product.name}
+                          loading="lazy"
                           className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
                         />
                       </Link>
