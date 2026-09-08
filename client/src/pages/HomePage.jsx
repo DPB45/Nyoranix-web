@@ -106,7 +106,7 @@ const HomePage = () => {
       <Meta
         title="Nyoranix | Electronic Components, Sensors & Robotics Kits"
         description="Nyoranix is your trusted partner for premium electronic components, educational kits, and industrial solutions. Shop sensors, controllers, and robotics parts online."
-        path=""
+        path="/"
       />
 
       {/* 1. DYNAMIC HERO SLIDER */}
