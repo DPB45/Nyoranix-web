@@ -167,45 +167,47 @@ const Navbar = () => {
           {/* Right Section */}
           <div className="flex items-center gap-6">
 
-            {/* === 3. SEARCH BAR (now available site-wide, not just /shop) === */}
-            <div className="relative hidden xl:block" ref={searchBoxRef}>
-              <form onSubmit={handleSearch} className="flex items-center bg-gray-100 rounded-full px-4 py-2 w-64 border border-transparent focus-within:border-gray-300 focus-within:bg-white transition-all">
-                <FaSearch className="text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  className="bg-transparent border-none focus:ring-0 text-sm ml-2 text-gray-700 w-full placeholder-gray-400 outline-none"
-                />
-              </form>
+            {/* === 3. SEARCH BAR (only visible on the Products/Shop page) === */}
+            {location.pathname === '/shop' && (
+              <div className="relative hidden xl:block" ref={searchBoxRef}>
+                <form onSubmit={handleSearch} className="flex items-center bg-gray-100 rounded-full px-4 py-2 w-64 border border-transparent focus-within:border-gray-300 focus-within:bg-white transition-all">
+                  <FaSearch className="text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="bg-transparent border-none focus:ring-0 text-sm ml-2 text-gray-700 w-full placeholder-gray-400 outline-none"
+                  />
+                </form>
 
-              <AnimatePresence>
-                {suggestions.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 w-full bg-white border border-gray-100 shadow-xl rounded-lg mt-1 z-50 overflow-hidden"
-                  >
-                    {suggestions.map((p) => (
-                      <div
-                        key={p._id}
-                        onClick={() => handleSuggestionClick(p._id)}
-                        className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0"
-                      >
-                        <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
-                        <div className="overflow-hidden">
-                          <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{p.category}</p>
+                <AnimatePresence>
+                  {suggestions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 w-full bg-white border border-gray-100 shadow-xl rounded-lg mt-1 z-50 overflow-hidden"
+                    >
+                      {suggestions.map((p) => (
+                        <div
+                          key={p._id}
+                          onClick={() => handleSuggestionClick(p._id)}
+                          className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0"
+                        >
+                          <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
+                          <div className="overflow-hidden">
+                            <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{p.category}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
             <div className="flex items-center gap-5 text-gray-600">
               {/* User Dropdown */}
@@ -275,28 +277,32 @@ const Navbar = () => {
               className="lg:hidden bg-white border-t border-gray-100 py-4 px-6 absolute w-full left-0 top-full shadow-lg z-40 overflow-hidden"
             >
 
-               {/* === 4. MOBILE SEARCH (now with the same live suggestions as desktop) === */}
-               <form onSubmit={handleSearch} className="flex items-center bg-gray-100 rounded-full px-4 py-2 mb-2 w-full">
-                  <FaSearch className="text-gray-400" />
-                  <input type="text" placeholder="Search products..." value={searchTerm} onChange={handleSearchChange} className="bg-transparent border-none focus:ring-0 text-sm ml-2 w-full outline-none" />
-               </form>
+               {/* === 4. MOBILE SEARCH (only visible on the Products/Shop page) === */}
+               {location.pathname === '/shop' && (
+                 <>
+                   <form onSubmit={handleSearch} className="flex items-center bg-gray-100 rounded-full px-4 py-2 mb-2 w-full">
+                      <FaSearch className="text-gray-400" />
+                      <input type="text" placeholder="Search products..." value={searchTerm} onChange={handleSearchChange} className="bg-transparent border-none focus:ring-0 text-sm ml-2 w-full outline-none" />
+                   </form>
 
-               {suggestions.length > 0 && (
-                 <div className="mb-4 bg-gray-50 border border-gray-100 rounded-lg overflow-hidden">
-                   {suggestions.map((p) => (
-                     <div
-                       key={p._id}
-                       onClick={() => handleSuggestionClick(p._id)}
-                       className="flex items-center gap-3 p-3 hover:bg-white cursor-pointer border-b last:border-0 border-gray-100"
-                     >
-                       <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
-                       <div className="overflow-hidden">
-                         <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
-                         <p className="text-xs text-gray-500 truncate">{p.category}</p>
-                       </div>
+                   {suggestions.length > 0 && (
+                     <div className="mb-4 bg-gray-50 border border-gray-100 rounded-lg overflow-hidden">
+                       {suggestions.map((p) => (
+                         <div
+                           key={p._id}
+                           onClick={() => handleSuggestionClick(p._id)}
+                           className="flex items-center gap-3 p-3 hover:bg-white cursor-pointer border-b last:border-0 border-gray-100"
+                         >
+                           <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
+                           <div className="overflow-hidden">
+                             <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
+                             <p className="text-xs text-gray-500 truncate">{p.category}</p>
+                           </div>
+                         </div>
+                       ))}
                      </div>
-                   ))}
-                 </div>
+                   )}
+                 </>
                )}
 
              <div className="flex flex-col space-y-4">
