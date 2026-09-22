@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaFacebook, FaYoutube, FaInstagram, FaLinkedin, FaMapMarkerAlt, FaPhone, FaEnvelope, FaExternalLinkAlt } from 'react-icons/fa';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+
+const Reveal = ({ children, delay = 0, className = '' }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.2 }}
+    transition={{ duration: 0.5, delay, ease: 'easeOut' }}
+    className={className}
+  >
+    {children}
+  </motion.div>
+);
 
 const Footer = () => {
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -18,10 +31,17 @@ const Footer = () => {
     setNewsletterEmail('');
   };
 
+  const socialLinks = [
+    { icon: <FaFacebook />, href: "https://www.facebook.com/people/Tathagat-Tech-Universe/61567520693073/?rdid=hzDwyluu54ig01dt&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F15Ut7zZQkE%2F" },
+    { icon: <FaYoutube />, href: "https://youtube.com/@nyoranix?si=Z8lRIjmUOzZaO0N0" },
+    { icon: <FaInstagram />, href: "https://www.instagram.com/nyoranix/" },
+    { icon: <FaLinkedin />, href: "https://www.linkedin.com/company/nyoranix/" },
+  ];
+
   return (
     // Added 'no-print' class AND 'data-html2canvas-ignore' attribute
     <footer
-      className="bg-gray-900 text-gray-300 pt-16 pb-8 border-t border-gray-800 no-print"
+      className="bg-nyoranixBlack text-gray-300 pt-16 pb-8 border-t border-gray-800 no-print"
       data-html2canvas-ignore="true"
     >
       <div className="container mx-auto px-4">
@@ -30,62 +50,73 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
 
           {/* Brand Info */}
-          <div>
+          <Reveal>
             <h3 className="text-white text-2xl font-bold mb-6 tracking-tight">Nyoranix</h3>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
               Your trusted partner for premium electronic components, educational kits, and industrial solutions. Smart made simple.
             </p>
             <div className="flex space-x-4">
-              <a href="https://www.facebook.com/people/Tathagat-Tech-Universe/61567520693073/?rdid=hzDwyluu54ig01dt&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F15Ut7zZQkE%2F" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all duration-300"><FaFacebook /></a>
-              <a href="https://youtube.com/@nyoranix?si=Z8lRIjmUOzZaO0N0" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-400 hover:text-white transition-all duration-300"><FaYoutube /></a>
-              <a href="https://www.instagram.com/nyoranix/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-pink-600 hover:text-white transition-all duration-300"><FaInstagram /></a>
-              <a href="https://www.linkedin.com/company/nyoranix/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-700 hover:text-white transition-all duration-300"><FaLinkedin /></a>
+              {socialLinks.map((social, idx) => (
+                <motion.a
+                  key={idx}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.15, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-nyoranixRed hover:text-white transition-colors duration-300"
+                >
+                  {social.icon}
+                </motion.a>
+              ))}
             </div>
-          </div>
+          </Reveal>
 
           {/* Quick Links */}
-          <div>
+          <Reveal delay={0.1}>
             <h4 className="text-white font-bold text-lg mb-6">Quick Links</h4>
             <ul className="space-y-3 text-sm">
-              <li><Link to="/shop" className="hover:text-blue-400 transition-colors">All Products</Link></li>
-              <li><Link to="/about" className="hover:text-blue-400 transition-colors">About Us</Link></li>
-              <li><Link to="/contact" className="hover:text-blue-400 transition-colors">Contact Support</Link></li>
-              <li><Link to="/profile" className="hover:text-blue-400 transition-colors">My Account</Link></li>
+              <li><Link to="/shop" className="hover:text-nyoranixRed transition-colors">All Products</Link></li>
+              <li><Link to="/solutions" className="hover:text-nyoranixRed transition-colors">Solutions</Link></li>
+              <li><Link to="/blog" className="hover:text-nyoranixRed transition-colors">Blog</Link></li>
+              <li><Link to="/about" className="hover:text-nyoranixRed transition-colors">About Us</Link></li>
+              <li><Link to="/contact" className="hover:text-nyoranixRed transition-colors">Contact Support</Link></li>
+              <li><Link to="/profile" className="hover:text-nyoranixRed transition-colors">My Account</Link></li>
             </ul>
-          </div>
+          </Reveal>
 
           {/* Contact Info */}
-          <div>
+          <Reveal delay={0.2}>
             <h4 className="text-white font-bold text-lg mb-6">Contact Us</h4>
             <ul className="space-y-4 text-sm">
               <li className="flex items-start gap-3">
-                <FaMapMarkerAlt className="text-blue-500 mt-1 flex-shrink-0" />
+                <FaMapMarkerAlt className="text-nyoranixRed mt-1 flex-shrink-0" />
                 <span>Ashirwad Building, Vadgaon Bk, Pune, Maharashtra 411041</span>
               </li>
               <li className="flex items-center gap-3">
-                <FaPhone className="text-blue-500 flex-shrink-0" />
-                <span>+91 88050 06332</span>
+                <FaPhone className="text-nyoranixRed flex-shrink-0" />
+                <a href="tel:+918805006332" className="hover:text-white transition-colors">+91 88050 06332</a>
               </li>
               <li className="flex items-center gap-3">
-                <FaEnvelope className="text-blue-500 flex-shrink-0" />
-                <span>nyoranix@gmail.com</span>
+                <FaEnvelope className="text-nyoranixRed flex-shrink-0" />
+                <a href="mailto:nyoranix@gmail.com" className="hover:text-white transition-colors">nyoranix@gmail.com</a>
               </li>
             </ul>
-          </div>
+          </Reveal>
 
           {/* Newsletter */}
-          <div>
+          <Reveal delay={0.3}>
             <h4 className="text-white font-bold text-lg mb-6">Stay Updated</h4>
             <p className="text-xs text-gray-500 mb-4">Subscribe for latest products and offers.</p>
             <form className="flex flex-col gap-3" onSubmit={handleNewsletterSubmit}>
-              <input type="email" required value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} placeholder="Enter your email" className="bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:border-blue-500 text-sm" />
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm transition-colors">Subscribe</button>
+              <input type="email" required value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} placeholder="Enter your email" className="bg-gray-800 border border-gray-700 text-white px-4 py-2 rounded focus:outline-none focus:border-nyoranixRed text-sm" />
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="bg-nyoranixRed hover:bg-red-700 text-white px-4 py-2 rounded font-bold text-sm transition-colors">Subscribe</motion.button>
             </form>
-          </div>
+          </Reveal>
         </div>
 
         {/* === DISCLAIMER SECTION (NEW) === */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
+        <Reveal className="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700">
            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex-1">
                  <h5 className="text-white font-bold text-sm mb-1 flex items-center gap-2">
@@ -101,12 +132,12 @@ const Footer = () => {
                 href="https://tathagatglobal.com/?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnrLXkpnvvrrlYGcTXiRRuT8-RYsnvsiDf_QBsdesheI8grG7Vnfb3WJ6-Q-k&brid=rbcvnujHlW9WwRhN4QE3AA"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap bg-gray-900 px-4 py-2 rounded border border-gray-700"
+                className="flex items-center gap-2 text-xs font-bold text-nyoranixRed hover:text-red-400 transition-colors whitespace-nowrap bg-gray-900 px-4 py-2 rounded border border-gray-700"
               >
                 Visit Tathagat Tech <FaExternalLinkAlt size={10} />
               </a>
            </div>
-        </div>
+        </Reveal>
 
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">

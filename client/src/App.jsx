@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import WhatsAppButton from './components/common/WhatsAppButton';
+import BackToTopButton from './components/common/BackToTopButton';
 import ScrollToTop from './components/common/ScrollToTop'; // 2. Import ScrollToTop
 import AdminRoute from './components/admin/AdminRoute';
 import { SITE_URL } from './components/common/Meta';
@@ -132,6 +133,7 @@ function App() {
 
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <WhatsAppButton />}
+      {!isAdminRoute && <BackToTopButton />}
     </div>
   );
 }

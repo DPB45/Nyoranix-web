@@ -1,12 +1,13 @@
 import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { FaStar, FaChevronDown, FaChevronUp, FaShoppingCart, FaEye, FaBolt } from 'react-icons/fa';
+import { FaChevronDown, FaChevronUp, FaShoppingCart, FaEye, FaBolt } from 'react-icons/fa';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
 import Meta from '../components/common/Meta';
+import StarRating from '../components/common/StarRating';
 
 // Reusable Filter Component
 const FilterSection = ({ title, children, defaultOpen = true }) => {
@@ -288,12 +289,8 @@ const ShopPage = () => {
                     <p className="text-blue-600 font-bold text-lg mb-2">₹{product.price}</p>
 
                     <div className="flex items-center text-xs text-gray-500 mb-4">
-                      <div className="flex text-yellow-400 mr-2">
-                        {[...Array(5)].map((_, i) => (
-                          <FaStar key={i} className={i < 4 ? "fill-current" : "text-gray-300"} />
-                        ))}
-                      </div>
-                      <span>({product.numReviews || 0})</span>
+                      <StarRating rating={product.rating} />
+                      <span className="ml-2">({product.numReviews || 0})</span>
                     </div>
 
                     <div className="mt-auto flex flex-col gap-2">
