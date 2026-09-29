@@ -1,18 +1,15 @@
 import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
-import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  FaArrowRight, FaMicrochip, FaIndustry, FaWifi, FaStar, FaShoppingCart,
+  FaArrowRight, FaMicrochip, FaIndustry, FaWifi, FaStar,
   FaBolt, FaRobot, FaTools, FaDesktop, FaBox, FaPlug, FaLayerGroup,
-  FaChevronLeft, FaChevronRight, FaShippingFast, FaShieldAlt, FaHeadset, FaAward
+  FaShippingFast, FaShieldAlt, FaHeadset, FaAward, FaCode, FaCogs
 } from 'react-icons/fa';
-import { useDispatch } from 'react-redux';
-import { addToCart } from '../redux/slices/cartSlice';
 import SkeletonCard from '../components/common/SkeletonCard';
-import StarRating from '../components/common/StarRating';
+import ProductCard from '../components/common/ProductCard';
 // === 1. IMPORT META COMPONENT ===
 import Meta from '../components/common/Meta';
 
@@ -31,14 +28,14 @@ const Reveal = ({ children, delay = 0, className = '' }) => (
 );
 
 const HomePage = () => {
-  const dispatch = useDispatch();
-
   // === STATE ===
   const [newArrivals, setNewArrivals] = useState([]);
   const [banners, setBanners] = useState([]);
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [productCount, setProductCount] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
+  const [typedText, setTypedText] = useState('');
+  const phrases = ['Sensors.', 'Controllers.', 'Robotics.'];
 
   // === 2. FINAL CATEGORIES LIST ===
   const categories = [
@@ -77,6 +74,7 @@ const HomePage = () => {
         ]);
 
         setNewArrivals(prodRes.data.slice(0, 8));
+        setAllProducts(allProductsRes.data);
         setProductCount(allProductsRes.data.length);
 
         if (configRes.data.banners && configRes.data.banners.length > 0) {
@@ -100,35 +98,19 @@ const HomePage = () => {
     loadData();
   }, []);
 
-  // === AUTO-SLIDE LOGIC ===
   useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev === banners.length - 1 ? 0 : prev + 1));
-    }, 5000);
+    let phrase = 0, char = 0, deleting = false;
+    const timer = setInterval(() => {
+      const target = phrases[phrase];
+      char = deleting ? char - 1 : char + 1;
+      setTypedText(target.slice(0, char));
+      if (!deleting && char === target.length) deleting = true;
+      else if (deleting && char === 0) { deleting = false; phrase = (phrase + 1) % phrases.length; }
+    }, deleting ? 55 : 110);
+    return () => clearInterval(timer);
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [banners.length]);
-
-  const nextSlide = () => {
-    setCurrentSlide(currentSlide === banners.length - 1 ? 0 : currentSlide + 1);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide(currentSlide === 0 ? banners.length - 1 : currentSlide - 1);
-  };
-
-  const handleAddToCart = (product) => {
-    // ShopPage already blocks this for an out-of-stock item; this page was
-    // missing the same guard, so a sold-out "new arrival" could be silently
-    // added to the cart at quantity 0 instead of showing an error.
-    if (!product.countInStock || product.countInStock <= 0) {
-      toast.error("Item is out of stock");
-      return;
-    }
-    dispatch(addToCart({ ...product, id: product._id, quantity: 1 }));
-    toast.success(`${product.name} added to cart!`);
-  };
+  const categoryCount = title => allProducts.filter(p => p.category === title).length;
 
   return (
     <div className="font-sans text-gray-800 overflow-x-hidden">
@@ -139,92 +121,23 @@ const HomePage = () => {
         path="/"
       />
 
-      {/* 1. DYNAMIC HERO SLIDER */}
-      <section className="relative h-screen w-full bg-nyoranixBlack flex items-center justify-center overflow-hidden group">
-
-        <AnimatePresence mode="wait">
-          {banners.length > 0 && (
-            <motion.div
-              key={currentSlide}
-              initial={{ opacity: 0, scale: 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8, ease: 'easeInOut' }}
-              className="absolute inset-0"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-nyoranixBlack via-nyoranixBlack/90 to-red-950/60 opacity-95 z-0"></div>
-
-              <div
-                className="absolute inset-0 z-0 opacity-40 bg-cover bg-center"
-                style={{ backgroundImage: `url('${banners[currentSlide].image}')` }}
-              ></div>
-
-              <div className="absolute inset-0 flex items-center justify-center z-20">
-                <div className="text-center px-4 max-w-4xl mx-auto">
-                  <motion.span
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.15 }}
-                    className="text-red-400 font-bold tracking-widest uppercase text-sm mb-4 block"
-                  >
-                    Welcome to Nyoranix
-                  </motion.span>
-                  <motion.h1
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.3 }}
-                    className="text-5xl md:text-7xl font-extrabold text-white mb-6 leading-tight"
-                  >
-                    {banners[currentSlide].title}
-                  </motion.h1>
-                  <motion.p
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.45 }}
-                    className="text-gray-300 text-lg md:text-xl mb-10 max-w-2xl mx-auto"
-                  >
-                    {banners[currentSlide].subtitle}
-                  </motion.p>
-                  <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.6 }}
-                    className="flex flex-col sm:flex-row gap-4 justify-center"
-                  >
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-                      <Link to="/shop" className="bg-nyoranixRed hover:bg-red-700 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg flex items-center justify-center gap-2">
-                        Shop Now <FaArrowRight />
-                      </Link>
-                    </motion.div>
-                  </motion.div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {banners.length > 1 && (
-          <>
-            <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full z-30 backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100">
-              <FaChevronLeft size={24} />
-            </button>
-            <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full z-30 backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100">
-              <FaChevronRight size={24} />
-            </button>
-
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-30">
-              {banners.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    idx === currentSlide ? 'bg-nyoranixRed w-8' : 'bg-white/50 w-2 hover:bg-white'
-                  }`}
-                />
-              ))}
-            </div>
-          </>
-        )}
+      {/* ELECTRONICS HERO */}
+      <section className="relative min-h-[calc(100vh-5rem)] bg-zinc-950 text-white overflow-hidden flex items-center">
+        <div className="absolute inset-0 circuit-grid opacity-40" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(211,47,47,.22),transparent_42%)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/40 via-zinc-950/70 to-zinc-950" />
+        <motion.div animate={{ y: [0, -14, 0], x: [0, 10, 0] }} transition={{ duration: 7, repeat: Infinity }} className="absolute top-28 left-[8%] text-red-500/70 text-5xl"><FaMicrochip /></motion.div>
+        <motion.div animate={{ y: [0, 18, 0], x: [0, -12, 0] }} transition={{ duration: 8, repeat: Infinity }} className="absolute top-1/3 right-[10%] text-white/30 text-5xl"><FaCogs /></motion.div>
+        <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 6, repeat: Infinity }} className="absolute bottom-24 left-[16%] text-red-400/40 text-4xl"><FaCode /></motion.div>
+        <div className="relative z-10 container mx-auto px-5 py-28 grid lg:grid-cols-[1.1fr_.9fr] gap-12 items-center">
+          <div>
+            <motion.span initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 text-red-300 text-xs font-bold uppercase tracking-[.25em]"><span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> Nyoranix Electronics</motion.span>
+            <motion.h1 initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .15 }} className="text-5xl md:text-7xl font-black leading-[.95] mt-6">Build what’s next.<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-300 to-white">{typedText}<span className="text-red-500 animate-pulse">|</span></span></motion.h1>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .35 }} className="text-gray-300 text-lg md:text-xl max-w-xl mt-7 leading-relaxed">Precision electronic components, modules and kits for makers, engineers, automation teams and robotics builders.</motion.p>
+            <div className="flex flex-wrap gap-4 mt-9"><Link to="/shop" className="px-7 py-3.5 rounded-full bg-nyoranixRed hover:bg-red-700 font-bold shadow-[0_0_35px_rgba(211,47,47,.35)] flex items-center gap-2">Explore Components <FaArrowRight /></Link><Link to="/solutions" className="px-7 py-3.5 rounded-full border border-white/20 bg-white/5 backdrop-blur hover:bg-white/10 font-bold">Explore Solutions</Link></div>
+          </div>
+          <div className="relative hidden lg:block h-[430px]"><motion.div animate={{ rotate: [0, 2, -2, 0], y: [0, -8, 0] }} transition={{ duration: 9, repeat: Infinity }} className="absolute inset-10 rounded-[3rem] border border-red-500/20 bg-white/[.04] backdrop-blur-md shadow-[0_0_100px_rgba(211,47,47,.12)]" /><div className="absolute inset-0 flex items-center justify-center">{banners[0]?.image ? <img src={banners[0].image} alt="" className="w-[75%] h-[75%] object-cover rounded-3xl opacity-50 mix-blend-screen" /> : <FaMicrochip className="text-[13rem] text-red-500/50" />}</div><div className="absolute top-4 right-5 glass-chip">PRECISION</div><div className="absolute bottom-8 left-3 glass-chip">SMART SYSTEMS</div></div>
+        </div>
       </section>
 
       {/* TRUST BAR */}
@@ -242,39 +155,11 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* 2. CATEGORIES SECTION */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white dark:bg-zinc-950">
         <div className="container mx-auto px-4">
-          <Reveal className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Our Categories</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">
-              Explore {productCount !== null ? `${productCount}+ products across` : ''} our specialized components across different sectors.
-            </p>
-          </Reveal>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((cat, idx) => (
-              <Reveal key={cat.id} delay={(idx % 4) * 0.08}>
-                <motion.div
-                  whileHover={{ y: -6 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  className={`p-6 rounded-2xl border border-gray-100 hover:shadow-xl transition-shadow duration-300 group h-full ${cat.bg}`}
-                >
-                  <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center shadow-sm mb-4 group-hover:scale-110 transition-transform duration-300 mx-auto">
-                    {cat.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">{cat.title}</h3>
-                  <p className="text-gray-600 text-xs leading-relaxed text-center mb-4">
-                    {cat.desc}
-                  </p>
-                  <div className="text-center">
-                    <Link to={`/shop?category=${encodeURIComponent(cat.title)}`} className="inline-flex items-center gap-2 text-xs font-bold text-gray-900 group-hover:text-nyoranixRed transition-colors">
-                      Explore <FaArrowRight size={10} />
-                    </Link>
-                  </div>
-                </motion.div>
-              </Reveal>
-            ))}
+          <Reveal className="text-center mb-12"><h2 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white">Explore the ecosystem</h2><p className="text-gray-500 dark:text-gray-400 mt-3">Find the parts behind your next prototype, product or robot.</p></Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {categories.map((cat, idx) => <Reveal key={cat.id} delay={(idx % 4) * .06}><Link to={`/shop?category=${encodeURIComponent(cat.title)}`}><motion.div whileHover={{ y: -7 }} className="category-card p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 h-full group"><motion.div whileHover={{ rotate: 8, scale: 1.12 }} className="w-14 h-14 rounded-2xl bg-white dark:bg-zinc-950 flex items-center justify-center shadow-sm mb-5 mx-auto">{cat.icon}</motion.div><h3 className="text-lg font-extrabold text-gray-900 dark:text-white text-center">{cat.title}</h3><p className="text-gray-500 dark:text-gray-400 text-xs text-center mt-2 leading-relaxed min-h-[42px]">{cat.desc}</p><div className="flex items-center justify-between mt-5 text-xs font-bold"><span className="text-gray-400">{categoryCount(cat.title)} items</span><span className="text-nyoranixRed flex items-center gap-1">Explore <FaArrowRight /></span></div></motion.div></Link></Reveal>)}
           </div>
         </div>
       </section>
@@ -297,41 +182,8 @@ const HomePage = () => {
               ))}
             </div>
           ) : newArrivals.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {newArrivals.map((product, idx) => (
-                <Reveal key={product._id} delay={(idx % 4) * 0.08}>
-                  <motion.div
-                    whileHover={{ y: -6 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col"
-                  >
-                     <div className="relative h-64 bg-gray-50 flex items-center justify-center p-4">
-                      <img
-                        src={product.images?.[0] || product.image || 'https://via.placeholder.com/300'}
-                        alt={product.name}
-                        loading="lazy"
-                        className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
-                      />
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg text-gray-800 hover:text-nyoranixRed hover:scale-110 transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
-                      >
-                        <FaShoppingCart />
-                      </button>
-                     </div>
-                     <div className="p-5 flex-1 flex flex-col">
-                      <div className="text-xs text-gray-500 mb-1">{product.category}</div>
-                      <Link to={`/product/${product._id}`} className="block font-bold text-gray-900 mb-2 hover:text-nyoranixRed transition-colors line-clamp-2 h-12">
-                        {product.name}
-                      </Link>
-                      <div className="flex items-center justify-between mt-auto pt-4">
-                        <span className="text-xl font-bold text-nyoranixRed">₹{product.price}</span>
-                        <StarRating rating={product.rating} showCount count={product.numReviews || 0} />
-                      </div>
-                    </div>
-                  </motion.div>
-                </Reveal>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {newArrivals.map((product, idx) => <Reveal key={product._id} delay={(idx % 4) * .06}><ProductCard product={product} compact /></Reveal>)}
             </div>
           ) : (
             <div className="text-center text-gray-500">No new arrivals.</div>
