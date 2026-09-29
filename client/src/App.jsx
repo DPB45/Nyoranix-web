@@ -10,9 +10,6 @@ import BackToTopButton from './components/common/BackToTopButton';
 import ScrollToTop from './components/common/ScrollToTop'; // 2. Import ScrollToTop
 import AdminRoute from './components/admin/AdminRoute';
 import { SITE_URL } from './components/common/Meta';
-import { motion, AnimatePresence } from 'framer-motion';
-import ThemeProvider from './components/common/ThemeProvider';
-import CartDrawer from './components/common/CartDrawer';
 
 // 3. LAZY LOAD PAGES (Replaces static imports)
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -54,8 +51,7 @@ function App() {
   const isAdminRoute = pathname.startsWith('/admin');
 
   return (
-    <ThemeProvider>
-    <div className="flex flex-col min-h-screen font-sans bg-nyoranixWhite dark:bg-zinc-950 text-gray-900 dark:text-white relative transition-colors duration-300">
+    <div className="flex flex-col min-h-screen font-sans bg-nyoranixWhite relative">
       <Toaster position="top-center" reverseOrder={false} />
       <ScrollToTop /> {/* 4. Add ScrollToTop here */}
 
@@ -97,9 +93,7 @@ function App() {
       <main className="flex-grow">
         {/* 5. Wrap Routes in Suspense */}
         <Suspense fallback={<PageLoader />}>
-          <AnimatePresence mode="wait">
-            <motion.div key={pathname} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.22 }}>
-            <Routes location={useLocation()} key={pathname}>
+          <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/shop" element={<ShopPage />} />
             <Route path="/product/:id" element={<ProductDetailsPage />} />
@@ -133,18 +127,14 @@ function App() {
 
             {/* Catch-all - must stay last */}
             <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-            </motion.div>
-          </AnimatePresence>
+          </Routes>
         </Suspense>
       </main>
 
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <WhatsAppButton />}
       {!isAdminRoute && <BackToTopButton />}
-      {!isAdminRoute && <CartDrawer />}
     </div>
-    </ThemeProvider>
   );
 }
 
