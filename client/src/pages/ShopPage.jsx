@@ -7,7 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
 import Meta from '../components/common/Meta';
-import ProductCard from '../components/common/ProductCard';
+import StarRating from '../components/common/StarRating';
 
 // Reusable Filter Component
 const FilterSection = ({ title, children, defaultOpen = true }) => {
@@ -178,7 +178,7 @@ const ShopPage = () => {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   return (
-    <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 font-sans bg-gray-50 dark:bg-zinc-950 min-h-screen">
+    <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 font-sans bg-gray-50 min-h-screen">
       <Meta
         title={selectedCategories.length === 1
           ? `${selectedCategories[0]} | Shop | Nyoranix`
@@ -190,7 +190,7 @@ const ShopPage = () => {
       />
 
       {/* === LEFT SIDEBAR - FILTERS === */}
-      <aside className="lg:w-1/4 pr-4 bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm h-fit">
+      <aside className="lg:w-1/4 pr-4 bg-white p-6 rounded-lg shadow-sm h-fit">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Filters</h2>
           <button onClick={() => window.location.reload()} className="text-xs text-blue-600 hover:underline">Reset</button>
@@ -234,12 +234,12 @@ const ShopPage = () => {
             dynamic on the selected category so /shop?category=X reads as
             genuinely distinct content rather than a copy of the generic
             shop page with a filter silently applied. */}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">
           {selectedCategories.length === 1 ? selectedCategories[0] : "Shop All Products"}
         </h1>
 
         {/* Sorting Bar */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm">
           <p className="text-gray-600 text-sm mb-4 sm:mb-0">
             Showing <span className="font-bold">{filteredProducts.length > 0 ? indexOfFirstProduct + 1 : 0}–{Math.min(indexOfLastProduct, filteredProducts.length)}</span> of <span className="font-bold">{filteredProducts.length}</span> results
           </p>
@@ -260,12 +260,75 @@ const ShopPage = () => {
           <>
             {/* Product Grid */}
             {currentProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {currentProducts.map(product => <ProductCard key={product._id} product={product} />)}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {currentProducts.map(product => (
+                  <div key={product._id} className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col hover:shadow-lg transition-shadow duration-300">
+
+                    <div className="h-48 flex items-center justify-center mb-4 bg-gray-50 rounded-md overflow-hidden relative group">
+                      <Link to={`/product/${product._id}`} className="w-full h-full flex items-center justify-center">
+                        <img
+                          src={product.images?.[0] || product.image || "https://via.placeholder.com/300"}
+                          alt={product.name}
+                          loading="lazy"
+                          className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
+                        />
+                      </Link>
+                      {product.countInStock === 0 && (
+                        <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                          <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">Out of Stock</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <span className="text-xs text-gray-500 mb-1">{product.category}</span>
+
+                    <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2 h-10 hover:text-blue-600 cursor-pointer">
+                      <Link to={`/product/${product._id}`}>{product.name}</Link>
+                    </h3>
+
+                    <p className="text-blue-600 font-bold text-lg mb-2">₹{product.price}</p>
+
+                    <div className="flex items-center text-xs text-gray-500 mb-4">
+                      <StarRating rating={product.rating} />
+                      <span className="ml-2">({product.numReviews || 0})</span>
+                    </div>
+
+                    <div className="mt-auto flex flex-col gap-2">
+                      <button
+                        onClick={() => handleBuyNow(product)}
+                        disabled={product.countInStock === 0}
+                        className={`w-full px-3 py-2 rounded-md font-bold transition-colors text-xs flex items-center justify-center gap-1 ${
+                          product.countInStock > 0
+                            ? 'bg-nyoranixRed text-white hover:opacity-90'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                       <FaBolt /> Buy Now
+                      </button>
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        disabled={product.countInStock === 0}
+                        className={`w-full px-3 py-2 rounded-md font-medium transition-colors text-xs flex items-center justify-center gap-1 border ${
+                          product.countInStock > 0
+                            ? 'border-blue-600 text-blue-600 hover:bg-blue-50'
+                            : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                       <FaShoppingCart /> {product.countInStock > 0 ? 'Add to Cart' : 'Sold Out'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="text-center py-20 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm"><h3 className="text-lg font-bold text-gray-700 dark:text-white">No products found</h3><p className="text-gray-500">Try changing your filters or check back later.</p></div>
+              <div className="text-center py-20 bg-white rounded-lg shadow-sm">
+                <h3 className="text-lg font-bold text-gray-700">No products found</h3>
+                <p className="text-gray-500">Try changing your filters or check back later.</p>
+              </div>
             )}
+          </>
+        )}
+
         {/* Pagination */}
         {filteredProducts.length > productsPerPage && (
           <div className="flex justify-center items-center space-x-2 mt-12">

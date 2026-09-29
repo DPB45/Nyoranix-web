@@ -1,27 +1,57 @@
-#root { min-height: 100vh; }
-@keyframes circuitPulse { 0%,100% { opacity:.28 } 50% { opacity:.55 } }
-.circuit-grid {
-  background-image:
-    linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px),
-    radial-gradient(circle, rgba(211,47,47,.35) 1px, transparent 1px);
-  background-size: 48px 48px, 48px 48px, 96px 96px;
-  animation: circuitPulse 4s ease-in-out infinite;
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
 }
-.glass-chip {
-  padding: .55rem .8rem;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.06);
-  backdrop-filter: blur(12px);
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: .18em;
-  font-weight: 800;
-  color: rgba(255,255,255,.75);
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
 }
-.category-card { transition: border-color .25s, box-shadow .25s, background .25s; }
-.category-card:hover { border-color: #D32F2F; box-shadow: 0 0 0 1px rgba(211,47,47,.25), 0 18px 50px rgba(211,47,47,.10); }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* client/src/index.css */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  /* Optional: Ensure the invoice takes full width and has no extra margins */
+  body, html {
+    margin: 0;
+    padding: 0;
+    background-color: white;
+  }
 }
