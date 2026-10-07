@@ -2,17 +2,15 @@ import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FaArrowRight, FaMicrochip, FaIndustry, FaWifi, FaStar, FaShoppingCart,
+  FaArrowRight, FaMicrochip, FaIndustry, FaWifi, FaStar,
   FaBolt, FaRobot, FaTools, FaDesktop, FaBox, FaPlug, FaLayerGroup,
   FaChevronLeft, FaChevronRight, FaShippingFast, FaShieldAlt, FaHeadset, FaAward
 } from 'react-icons/fa';
-import { useDispatch } from 'react-redux';
-import { addToCart } from '../redux/slices/cartSlice';
+import ProductCard from '../components/common/ProductCard';
+import { fetchAllProducts } from '../utils/productsCache';
 import SkeletonCard from '../components/common/SkeletonCard';
-import StarRating from '../components/common/StarRating';
 // === 1. IMPORT META COMPONENT ===
 import Meta from '../components/common/Meta';
 
@@ -31,7 +29,6 @@ const Reveal = ({ children, delay = 0, className = '' }) => (
 );
 
 const HomePage = () => {
-  const dispatch = useDispatch();
 
   // === STATE ===
   const [newArrivals, setNewArrivals] = useState([]);
@@ -69,33 +66,36 @@ const HomePage = () => {
   // === FETCH DATA ===
   useEffect(() => {
     const loadData = async () => {
-      try {
-        const [prodRes, configRes, allProductsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/products?isNewArrival=true`),
-          axios.get(`${API_URL}/api/config`),
-          axios.get(`${API_URL}/api/products`)
-        ]);
+      const fallbackBanner = {
+        image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80',
+        title: 'Innovate with Precision',
+        subtitle: 'Your one-stop shop for premium electronics...'
+      };
 
-        setNewArrivals(prodRes.data.slice(0, 8));
-        setProductCount(allProductsRes.data.length);
+      // allSettled: if /api/config fails the products still show (and vice versa)
+      const [productsResult, configResult] = await Promise.allSettled([
+        fetchAllProducts(),
+        axios.get(`${API_URL}/api/config`),
+      ]);
 
-        if (configRes.data.banners && configRes.data.banners.length > 0) {
-          setBanners(configRes.data.banners);
-        } else if (configRes.data.banner) {
-          setBanners([configRes.data.banner]);
-        } else {
-          setBanners([{
-            image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80',
-            title: 'Innovate with Precision',
-            subtitle: 'Your one-stop shop for premium electronics...'
-          }]);
-        }
-
-        setLoading(false);
-      } catch (error) {
-        console.error("Error loading home data", error);
-        setLoading(false);
+      if (productsResult.status === 'fulfilled') {
+        const all = productsResult.value;
+        setNewArrivals(all.filter(p => p.isNewArrival).slice(0, 8));
+        setProductCount(all.length);
+      } else {
+        console.error('Error loading products', productsResult.reason);
       }
+
+      const config = configResult.status === 'fulfilled' ? configResult.value.data : {};
+      if (config.banners && config.banners.length > 0) {
+        setBanners(config.banners);
+      } else if (config.banner) {
+        setBanners([config.banner]);
+      } else {
+        setBanners([fallbackBanner]);
+      }
+
+      setLoading(false);
     };
     loadData();
   }, []);
@@ -116,18 +116,6 @@ const HomePage = () => {
 
   const prevSlide = () => {
     setCurrentSlide(currentSlide === 0 ? banners.length - 1 : currentSlide - 1);
-  };
-
-  const handleAddToCart = (product) => {
-    // ShopPage already blocks this for an out-of-stock item; this page was
-    // missing the same guard, so a sold-out "new arrival" could be silently
-    // added to the cart at quantity 0 instead of showing an error.
-    if (!product.countInStock || product.countInStock <= 0) {
-      toast.error("Item is out of stock");
-      return;
-    }
-    dispatch(addToCart({ ...product, id: product._id, quantity: 1 }));
-    toast.success(`${product.name} added to cart!`);
   };
 
   return (
@@ -299,37 +287,8 @@ const HomePage = () => {
           ) : newArrivals.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {newArrivals.map((product, idx) => (
-                <Reveal key={product._id} delay={(idx % 4) * 0.08}>
-                  <motion.div
-                    whileHover={{ y: -6 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col"
-                  >
-                     <div className="relative h-64 bg-gray-50 flex items-center justify-center p-4">
-                      <img
-                        src={product.images?.[0] || product.image || 'https://via.placeholder.com/300'}
-                        alt={product.name}
-                        loading="lazy"
-                        className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
-                      />
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg text-gray-800 hover:text-nyoranixRed hover:scale-110 transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
-                      >
-                        <FaShoppingCart />
-                      </button>
-                     </div>
-                     <div className="p-5 flex-1 flex flex-col">
-                      <div className="text-xs text-gray-500 mb-1">{product.category}</div>
-                      <Link to={`/product/${product._id}`} className="block font-bold text-gray-900 mb-2 hover:text-nyoranixRed transition-colors line-clamp-2 h-12">
-                        {product.name}
-                      </Link>
-                      <div className="flex items-center justify-between mt-auto pt-4">
-                        <span className="text-xl font-bold text-nyoranixRed">₹{product.price}</span>
-                        <StarRating rating={product.rating} showCount count={product.numReviews || 0} />
-                      </div>
-                    </div>
-                  </motion.div>
+                <Reveal key={product._id} delay={(idx % 4) * 0.08} className="h-full">
+                  <ProductCard product={product} />
                 </Reveal>
               ))}
             </div>

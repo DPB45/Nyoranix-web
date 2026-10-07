@@ -5,7 +5,7 @@ import { Helmet } from 'react-helmet-async';
 // single source of truth other files (ProductDetailsPage's JSON-LD,
 // App.jsx's LocalBusiness schema, the sitemap generator) should import
 // from rather than hardcoding their own copy of the domain.
-export const SITE_URL = 'https://nyoranix-web-eta.vercel.app';
+export const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://nyoranix-web-eta.vercel.app').replace(/\/$/, '');
 const DEFAULT_OG_IMAGE = `${SITE_URL}/logo.jpg`;
 
 // Product images are currently stored as base64 data URIs (data:image/...),

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   addOrderItems,
+  getOrderQuote,
   getOrders,
   getMyOrders,
   getOrderById, // <--- 1. IMPORT THIS
@@ -15,6 +16,7 @@ router.route('/')
     .get(protect, admin, getOrders);
 
 router.route('/myorders').get(protect, getMyOrders);
+router.route('/quote').post(protect, getOrderQuote);
 
 // === 2. ADD THIS MISSING ROUTE ===
 router.route('/:id').get(protect, getOrderById);

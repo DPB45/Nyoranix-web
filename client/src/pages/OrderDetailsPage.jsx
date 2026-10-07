@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { FaCheckCircle, FaTruck, FaBox, FaFilePdf, FaFileInvoice, FaArrowLeft } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -37,6 +38,7 @@ const OrderDetailsPage = () => {
 
   // === OPTION 1: DOWNLOAD DIRECT PDF ===
   const downloadInvoice = () => {
+    try {
     const doc = new jsPDF();
     doc.setFontSize(20);
     doc.setTextColor(220, 38, 38);
@@ -64,8 +66,22 @@ const OrderDetailsPage = () => {
       startY: 50,
     });
 
-    doc.text(`Total: Rs. ${order.totalPrice}`, 140, doc.lastAutoTable.finalY + 10);
+    // Totals block: GST is shown as "included" for orders priced GST-inclusive
+    let y = doc.lastAutoTable.finalY + 10;
+    doc.text(`Subtotal: Rs. ${order.itemsPrice}`, 140, y); y += 6;
+    doc.text(`Shipping: Rs. ${order.shippingPrice}`, 140, y); y += 6;
+    if (order.taxIncluded) {
+      doc.text(`(Includes GST 18%: Rs. ${order.taxPrice})`, 140, y); y += 6;
+    } else {
+      doc.text(`Tax (18%): Rs. ${order.taxPrice}`, 140, y); y += 6;
+    }
+    doc.setFont(undefined, 'bold');
+    doc.text(`Total: Rs. ${order.totalPrice}`, 140, y);
     doc.save(`Invoice_${order._id}.pdf`);
+    } catch (err) {
+      console.error('Invoice PDF failed:', err);
+      toast.error('Could not create the invoice PDF. Please try again.');
+    }
   };
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;

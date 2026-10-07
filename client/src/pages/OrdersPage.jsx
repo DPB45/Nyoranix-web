@@ -1,7 +1,7 @@
 import { API_URL } from '../config/api';
 import Meta from '../components/common/Meta';
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux'; // 1. Import Redux
 import axios from 'axios'; // 2. Import Axios
 import { FaBox, FaClock, FaCheckCircle, FaTruck, FaArrowRight } from 'react-icons/fa';
@@ -9,6 +9,14 @@ import { FaBox, FaClock, FaCheckCircle, FaTruck, FaArrowRight } from 'react-icon
 const OrdersPage = () => {
   const { userInfo } = useSelector((state) => state.user); // 3. Get User Info
   const [orders, setOrders] = useState([]); // 4. Initialize empty state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  // Orders are private - send visitors who aren't logged in to the login page
+  useEffect(() => {
+    if (!userInfo) navigate('/login?redirect=/orders');
+  }, [userInfo, navigate]);
 
   // === 5. FETCH REAL ORDERS ===
   useEffect(() => {
@@ -24,18 +32,30 @@ const OrdersPage = () => {
           _id: order._id,
           date: order.createdAt.substring(0, 10),
           total: order.totalPrice,
-          status: order.isDelivered ? 'Delivered' : 'Processing', // Simple logic for status
+          // An online (UPI) order stays "Awaiting payment" until the admin has
+          // verified the UTR - it is not "Processing" yet.
+          status: order.isDelivered
+            ? 'Delivered'
+            : (order.paymentMethod === 'Online' && !order.isPaid ? 'Awaiting payment' : 'Processing'),
           items: order.orderItems
         }));
 
+        // newest first (the API also sorts, this keeps the UI correct regardless)
+        formattedOrders.sort((a, b) => b.date.localeCompare(a.date));
         setOrders(formattedOrders);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
+        setError('');
+      } catch (err) {
+        console.error("Error fetching orders:", err);
+        setError('We could not load your orders. Please refresh the page.');
+      } finally {
+        setLoading(false);
       }
     };
 
     if (userInfo) {
       fetchOrders();
+    } else {
+      setLoading(false);
     }
   }, [userInfo]);
 
@@ -43,6 +63,7 @@ const OrdersPage = () => {
     switch (status) {
       case 'Delivered': return 'bg-green-100 text-green-700 border-green-200';
       case 'Processing': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'Awaiting payment': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case 'Cancelled': return 'bg-red-100 text-red-700 border-red-200';
       default: return 'bg-gray-100 text-gray-700';
     }
@@ -59,7 +80,11 @@ const OrdersPage = () => {
       <Meta title="My Orders | Nyoranix" noindex />
       <h1 className="text-3xl font-bold text-gray-800 mb-8">My Orders</h1>
 
-      {orders.length === 0 ? (
+      {loading ? (
+        <div className="space-y-6">{[0, 1].map((i) => <div key={i} className="h-40 bg-gray-200 rounded-xl animate-pulse" />)}</div>
+      ) : error ? (
+        <div className="text-center py-16 bg-white rounded-xl shadow-sm text-red-600" role="alert">{error}</div>
+      ) : orders.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl shadow-sm">
           <FaBox className="text-gray-300 text-6xl mx-auto mb-4" />
           <p className="text-gray-500 text-lg">You haven't placed any orders yet.</p>

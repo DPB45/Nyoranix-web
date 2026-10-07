@@ -1,15 +1,23 @@
 const Inquiry = require('../models/Inquiry');
 const { sendInquiryNotification } = require('../utils/sendEmail');
+const { toStr, normalizeEmail, isEmail } = require('../utils/security');
 
 // @desc    Create new inquiry (Contact Us form)
 // @route   POST /api/inquiry
 // @access  Public
 const createInquiry = async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body;
+    // Coerce to bounded strings (blocks operator objects and giant payloads)
+    const name = toStr(req.body.name, 100);
+    const email = normalizeEmail(req.body.email);
+    const subject = toStr(req.body.subject, 150);
+    const message = toStr(req.body.message, 3000);
 
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ message: 'Please fill in all fields' });
+    }
+    if (!isEmail(email)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
     }
 
     const inquiry = await Inquiry.create({

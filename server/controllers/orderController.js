@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Order = require('../models/order');
 const Product = require('../models/product');
 
@@ -13,95 +14,188 @@ const calcShippingPrice = (itemsPrice, shippingMethod) => {
   return itemsPrice > FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
 };
 
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Prices in the catalogue are GST-INCLUSIVE (the storefront labels them
+// "Incl. GST" and the admin form derives them as excl x 1.18). So GST must not
+// be added on top again: it is only the portion already inside the item total.
+const gstContained = (amount) => amount - amount / (1 + TAX_RATE);
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// Turns the cart sent by the browser into {productId -> quantity}
+const parseCart = (orderItems, { strict }) => {
+  if (!Array.isArray(orderItems) || orderItems.length === 0) {
+    throw new HttpError(400, 'No order items');
+  }
+  const wanted = new Map();
+  const invalid = [];
+  for (const item of orderItems.slice(0, 100)) {
+    const id = String((item && (item.product || item.id || item._id)) || '');
+    const quantity = Math.floor(Number(item && (item.quantity || item.qty || 1)));
+    if (!mongoose.isValidObjectId(id)) {
+      if (strict) throw new HttpError(400, 'One or more products in your cart are invalid');
+      invalid.push(id);
+      continue;
+    }
+    if (!Number.isFinite(quantity) || quantity < 1 || quantity > 1000) {
+      if (strict) throw new HttpError(400, `Invalid quantity for ${item.name || id}`);
+      invalid.push(id);
+      continue;
+    }
+    wanted.set(id, (wanted.get(id) || 0) + quantity);
+  }
+  return { wanted, invalid };
+};
+
+// Single source of truth for order pricing, used both for the live quote shown
+// at checkout and for the order that is actually created, so the number the
+// customer pays (e.g. in the UPI QR) is the number that gets charged.
+//  strict:true  -> reject unknown/out-of-stock items (placing the order)
+//  strict:false -> clamp to stock and report what changed (checkout quote)
+const priceCart = async (orderItems, shippingMethod, { strict }) => {
+  const { wanted, invalid } = parseCart(orderItems, { strict });
+  const dbProducts = await Product.find({ _id: { $in: [...wanted.keys()] } })
+    .select('name price countInStock image images');
+
+  const verifiedItems = [];
+  const adjustments = [];
+  let itemsPrice = 0;
+
+  for (const [id, requested] of wanted) {
+    const dbProduct = dbProducts.find((p) => p._id.toString() === id);
+
+    if (!dbProduct) {
+      if (strict) throw new HttpError(400, 'One or more products in your cart could not be found');
+      adjustments.push({ id, type: 'removed', reason: 'No longer available' });
+      continue;
+    }
+
+    let quantity = requested;
+    if (dbProduct.countInStock < requested) {
+      if (strict) {
+        throw new HttpError(400, `${dbProduct.name} is out of stock (only ${dbProduct.countInStock} left)`);
+      }
+      quantity = dbProduct.countInStock;
+      if (quantity < 1) {
+        adjustments.push({ id, type: 'removed', reason: `${dbProduct.name} is out of stock` });
+        continue;
+      }
+      adjustments.push({ id, type: 'reduced', reason: `Only ${quantity} of ${dbProduct.name} left`, quantity });
+    }
+
+    itemsPrice += dbProduct.price * quantity;
+    verifiedItems.push({
+      name: dbProduct.name,
+      quantity,
+      image: dbProduct.images?.[0] || dbProduct.image,
+      price: dbProduct.price, // authoritative DB price, never the client's
+      product: dbProduct._id,
+      countInStock: dbProduct.countInStock,
+    });
+  }
+
+  invalid.forEach((id) => adjustments.push({ id, type: 'removed', reason: 'Invalid item' }));
+
+  const method = shippingMethod === 'express' ? 'express' : 'standard';
+  const shippingPrice = verifiedItems.length ? calcShippingPrice(itemsPrice, method) : 0;
+  const taxPrice = gstContained(itemsPrice);
+  const totalPrice = itemsPrice + shippingPrice; // GST already inside itemsPrice
+
+  return {
+    verifiedItems,
+    adjustments,
+    itemsPrice: round2(itemsPrice),
+    shippingPrice: round2(shippingPrice),
+    taxPrice: round2(taxPrice),
+    totalPrice: round2(totalPrice),
+  };
+};
+
+// @desc    Live price quote for the cart (current DB prices, stock-clamped)
+// @route   POST /api/orders/quote
+// @access  Private
+const getOrderQuote = async (req, res) => {
+  try {
+    const q = await priceCart(req.body.orderItems, req.body.shippingMethod, { strict: false });
+    res.json({
+      items: q.verifiedItems.map((i) => ({
+        id: String(i.product), name: i.name, price: i.price, quantity: i.quantity, countInStock: i.countInStock,
+      })),
+      adjustments: q.adjustments,
+      itemsPrice: q.itemsPrice,
+      shippingPrice: q.shippingPrice,
+      taxPrice: q.taxPrice,
+      totalPrice: q.totalPrice,
+      taxIncluded: true,
+      freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Could not calculate price' });
+  }
+};
+
+const ALLOWED_PAYMENT_METHODS = ['Cash on Delivery', 'Online'];
+const str = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Private
 const addOrderItems = async (req, res) => {
   try {
-    const { orderItems, shippingAddress, paymentMethod, shippingMethod, paymentReference } = req.body;
+    const { orderItems, shippingMethod } = req.body;
+    const paymentMethod = req.body.paymentMethod;
+    const paymentReference = str(req.body.paymentReference, 60);
+    const sa = req.body.shippingAddress || {};
 
-    if (paymentMethod === 'Online' && (!paymentReference || !paymentReference.trim())) {
-      res.status(400);
-      throw new Error('Please enter the UPI transaction ID / UTR number after paying');
+    if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+      throw new HttpError(400, 'Invalid payment method');
+    }
+    if (paymentMethod === 'Online' && !paymentReference) {
+      throw new HttpError(400, 'Please enter the UPI transaction ID / UTR number after paying');
     }
 
-    if (!orderItems || orderItems.length === 0) {
-      res.status(400);
-      throw new Error('No order items');
+    const shippingAddress = {
+      fullName: str(sa.fullName, 120),
+      address: str(sa.address, 400),
+      city: str(sa.city, 100),
+      postalCode: str(sa.postalCode, 12),
+      country: str(sa.country, 60) || 'India',
+      mobile: str(sa.mobile, 20),
+    };
+    if (!shippingAddress.fullName || !shippingAddress.address || !shippingAddress.city
+        || !shippingAddress.postalCode || !shippingAddress.mobile) {
+      throw new HttpError(400, 'Please complete the shipping address');
     }
 
-    // === Look up every product referenced in the cart in one query ===
-    const productIds = orderItems.map((x) => x.product || x.id || x._id);
-    const dbProducts = await Product.find({ _id: { $in: productIds } });
-
-    if (dbProducts.length !== new Set(productIds.map(String)).size) {
-      res.status(400);
-      throw new Error('One or more products in your cart could not be found');
-    }
-
-    // === Rebuild each line item using the REAL price/stock from the database ===
-    // Never trust price, name, or image sent from the browser for money math -
-    // a tampered request could otherwise pay whatever price it likes.
-    let itemsPrice = 0;
-    const verifiedItems = orderItems.map((item) => {
-      const productId = item.product || item.id || item._id;
-      const dbProduct = dbProducts.find((p) => p._id.toString() === String(productId));
-
-      if (!dbProduct) {
-        res.status(400);
-        throw new Error(`Product not found: ${item.name || productId}`);
-      }
-
-      const quantity = Number(item.quantity || item.qty || 1);
-
-      if (quantity < 1) {
-        res.status(400);
-        throw new Error(`Invalid quantity for ${dbProduct.name}`);
-      }
-
-      if (dbProduct.countInStock < quantity) {
-        res.status(400);
-        throw new Error(`${dbProduct.name} is out of stock (only ${dbProduct.countInStock} left)`);
-      }
-
-      itemsPrice += dbProduct.price * quantity;
-
-      return {
-        name: dbProduct.name,
-        quantity,
-        image: dbProduct.images?.[0] || dbProduct.image,
-        price: dbProduct.price, // authoritative DB price, not whatever the client sent
-        product: dbProduct._id,
-      };
-    });
-
-    const shippingPrice = calcShippingPrice(itemsPrice, shippingMethod);
-    const taxPrice = itemsPrice * TAX_RATE;
-    const totalPrice = itemsPrice + shippingPrice + taxPrice;
-
-    const round2 = (n) => Math.round(n * 100) / 100;
+    // Rebuild every line item and total from the DATABASE - never trust price,
+    // name or image sent from the browser for money math.
+    const priced = await priceCart(orderItems, shippingMethod, { strict: true });
+    const verifiedItems = priced.verifiedItems.map(({ countInStock, ...line }) => line);
 
     const order = new Order({
       orderItems: verifiedItems,
       user: req.user._id,
       shippingAddress,
       paymentMethod,
-      paymentReference: paymentMethod === 'Online' ? paymentReference.trim() : undefined,
-      itemsPrice: round2(itemsPrice),
-      shippingPrice: round2(shippingPrice),
-      taxPrice: round2(taxPrice),
-      totalPrice: round2(totalPrice),
+      paymentReference: paymentMethod === 'Online' ? paymentReference : undefined,
+      itemsPrice: priced.itemsPrice,
+      shippingPrice: priced.shippingPrice,
+      taxPrice: priced.taxPrice,
+      taxIncluded: true,
+      totalPrice: priced.totalPrice,
     });
 
     // === Atomically reserve stock for every item before creating the order ===
-    // A plain stock check earlier reads a snapshot that can go stale: if two
-    // customers check out the last unit of the same product at nearly the
-    // same time, both checks could pass before either decrement runs, and
-    // both orders would succeed - overselling. A conditional filter (only
-    // decrement if enough stock still exists) makes each reservation atomic
-    // at the database level. If any item's reservation fails partway
-    // through, roll back whatever already succeeded so stock stays accurate
-    // and no order is created for an over-committed cart.
+    // A plain stock check reads a snapshot that can go stale: if two customers
+    // check out the last unit at nearly the same time, both checks could pass.
+    // A conditional filter (only decrement if enough stock still exists) makes
+    // each reservation atomic. If any reservation fails, roll back the earlier
+    // ones so stock stays accurate and no order is created.
     const reserved = [];
     let stockError = null;
 
@@ -143,9 +237,9 @@ const addOrderItems = async (req, res) => {
 
     res.status(201).json(createdOrder);
   } catch (error) {
-    console.error("Order Creation Failed:", error.message);
-    const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
-    res.status(statusCode).json({ message: error.message });
+    console.error('Order Creation Failed:', error.message);
+    const status = error.status || 500;
+    res.status(status).json({ message: error.status ? error.message : 'Could not place your order. Please try again.' });
   }
 };
 
@@ -182,7 +276,7 @@ const getOrderById = async (req, res) => {
 // @access  Private
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id });
+    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -194,7 +288,7 @@ const getMyOrders = async (req, res) => {
 // @access  Private/Admin
 const getOrders = async (req, res) => {
   try {
-    const orders = await Order.find({}).populate('user', 'id name');
+    const orders = await Order.find({}).sort({ createdAt: -1 }).populate('user', 'id name');
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -253,6 +347,7 @@ const updateOrderToPaid = async (req, res) => {
 
 module.exports = {
   addOrderItems,
+  getOrderQuote,
   getOrderById, // <--- This was missing
   getMyOrders,
   getOrders,

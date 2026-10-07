@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Product = require('../models/product');
 
-// TODO: replace with your real production domain once set up (must match
-// the SITE_URL in client/src/components/common/Meta.jsx).
-const SITE_URL = 'https://nyoranix-web-eta.vercel.app';
+// Set SITE_URL (e.g. https://www.nyoranix.com) in the server's environment once
+// you have a custom domain - it must match VITE_SITE_URL on the client.
+const SITE_URL = (process.env.SITE_URL || (process.env.CLIENT_URL || 'https://nyoranix-web-eta.vercel.app').split(',')[0]).trim().replace(/\/$/, '');
 
 // @desc    Generate sitemap.xml dynamically from the current product list
 // @route   GET /sitemap.xml

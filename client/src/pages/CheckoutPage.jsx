@@ -5,7 +5,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaCheck, FaTruck, FaCreditCard, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
-import { clearCartItems } from '../redux/slices/cartSlice';
+import { clearCartItems, syncCartItems } from '../redux/slices/cartSlice';
+import { FREE_SHIPPING_THRESHOLD, STANDARD_SHIPPING_FEE, EXPRESS_SHIPPING_FEE, GST_RATE } from '../constants';
 import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
 
@@ -24,6 +25,10 @@ const CheckoutPage = () => {
   useEffect(() => {
     if (cartItems.length === 0) {
       navigate('/cart');
+    } else if (!userInfo) {
+      // Guests used to fill in the whole form and only then learn they had to log in
+      toast('Please log in to continue to checkout');
+      navigate('/login?redirect=/checkout');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -36,6 +41,20 @@ const CheckoutPage = () => {
     firstName: '', lastName: '', email: '', phone: '',
     address1: '', address2: '', city: '', state: '', zip: '', country: 'India'
   });
+
+  // Pre-fill what we already know about the logged-in customer
+  useEffect(() => {
+    if (!userInfo) return;
+    const [first = '', ...rest] = (userInfo.name || '').split(' ');
+    setFormData((f) => ({
+      ...f,
+      firstName: f.firstName || first,
+      lastName: f.lastName || rest.join(' '),
+      email: f.email || userInfo.email || '',
+      phone: f.phone || userInfo.mobile || '',
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userInfo?._id]);
 
   const [errors, setErrors] = useState({});
   const [shippingMethod, setShippingMethod] = useState('standard');
@@ -50,14 +69,60 @@ const CheckoutPage = () => {
       .catch(() => {}); // Non-critical - checkout still works with COD if this fails
   }, []);
 
-  // Math
-  const itemsPrice = cartItems.reduce((acc, item) => acc + Number(item.price) * Number(item.quantity || item.qty || 1), 0);
-  const FREE_SHIPPING_THRESHOLD = 500;
-  const standardShippingCost = itemsPrice > FREE_SHIPPING_THRESHOLD ? 0 : 50;
-  const expressShippingCost = 150;
-  const shippingCost = shippingMethod === 'express' ? expressShippingCost : standardShippingCost;
-  const tax = (itemsPrice * 0.18);
-  const grandTotal = (itemsPrice + shippingCost + tax);
+  // === PRICING ===
+  // Catalogue prices already INCLUDE 18% GST, so GST is shown as the portion
+  // contained in the subtotal and is NOT added on top again. The server quote
+  // (current DB prices + stock) is authoritative; the local calculation below is
+  // only the instant first paint / fallback if the quote request fails.
+  const [quote, setQuote] = useState(null);
+
+  const localItems = cartItems.reduce((acc, item) => acc + Number(item.price) * Number(item.quantity || item.qty || 1), 0);
+  const localShipping = shippingMethod === 'express'
+    ? EXPRESS_SHIPPING_FEE
+    : (localItems > FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE);
+
+  const itemsPrice = quote ? quote.itemsPrice : localItems;
+  const shippingCost = quote ? quote.shippingPrice : localShipping;
+  const tax = quote ? quote.taxPrice : localItems - localItems / (1 + GST_RATE); // GST contained in the price
+  const grandTotal = quote ? quote.totalPrice : localItems + localShipping;
+
+  const standardShippingCost = itemsPrice > FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
+  const expressShippingCost = EXPRESS_SHIPPING_FEE;
+
+  // Ask the server for the real total whenever the cart or shipping method changes
+  useEffect(() => {
+    if (!userInfo?.token || cartItems.length === 0) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await axios.post(
+          `${API_URL}/api/orders/quote`,
+          {
+            orderItems: cartItems.map((i) => ({ product: i.id || i._id || i.product, quantity: Number(i.quantity || i.qty || 1) })),
+            shippingMethod,
+          },
+          { headers: { Authorization: `Bearer ${userInfo.token}` } }
+        );
+        if (cancelled) return;
+        setQuote(data);
+
+        // Bring the cart in line with current prices/stock (guarded so it can't loop)
+        const changed = cartItems.length !== data.items.length || data.items.some((q) => {
+          const line = cartItems.find((c) => String(c.id || c._id) === q.id);
+          return !line || Number(line.price) !== q.price || Number(line.quantity) !== q.quantity || line.countInStock !== q.countInStock;
+        });
+        if (changed) {
+          dispatch(syncCartItems(data.items));
+          if (data.adjustments?.length) data.adjustments.forEach((a) => toast.error(a.reason));
+          else toast('Some prices in your cart were updated');
+        }
+      } catch {
+        if (!cancelled) setQuote(null); // fall back to the local estimate
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItems, shippingMethod, userInfo?.token]);
 
   // === 2. HANDLERS ===
   const handleChange = (e) => {
@@ -98,7 +163,7 @@ const CheckoutPage = () => {
   const handlePlaceOrder = async () => {
     if (!userInfo) {
       toast.error("Please login to place an order");
-      navigate('/login');
+      navigate('/login?redirect=/checkout');
       return;
     }
 
@@ -120,12 +185,12 @@ const CheckoutPage = () => {
         },
       };
 
+      // Only ids + quantities matter: the server rebuilds names, prices and totals
+      // from the database, so nothing price-related is sent from the browser.
       const orderPayload = {
         orderItems: cartItems.map(item => ({
           name: item.name,
           quantity: Number(item.quantity || item.qty || 1),
-          image: item.image,
-          price: Number(item.price),
           product: item.id || item._id || item.product,
         })),
         shippingAddress: {
@@ -139,10 +204,6 @@ const CheckoutPage = () => {
         paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online',
         shippingMethod,
         paymentReference: paymentMethod === 'online' ? upiRef.trim() : undefined,
-        itemsPrice: Number(itemsPrice.toFixed(2)),
-        shippingPrice: Number(shippingCost.toFixed(2)),
-        taxPrice: Number(tax.toFixed(2)),
-        totalPrice: Number(grandTotal.toFixed(2)),
       };
 
       const { data } = await axios.post(`${API_URL}/api/orders`, orderPayload, config);
@@ -194,7 +255,7 @@ const CheckoutPage = () => {
               {step === 2 && (
                 <div className="animate-fade-in space-y-4">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Shipping Method</h2>
-                  {itemsPrice <= FREE_SHIPPING_THRESHOLD && (
+                  {shippingMethod === 'standard' && itemsPrice <= FREE_SHIPPING_THRESHOLD && (
                     <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 -mt-2">
                       Add ₹{(FREE_SHIPPING_THRESHOLD - itemsPrice).toFixed(2)} more to unlock free Standard shipping.
                     </p>
@@ -269,7 +330,7 @@ const CheckoutPage = () => {
               <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
                 <div className="flex justify-between"><span>Subtotal</span><span>₹{itemsPrice.toFixed(2)}</span></div>
                 <div className="flex justify-between"><span>Shipping</span><span>₹{shippingCost.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Tax (18%)</span><span>₹{tax.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Includes GST (18%)</span><span>₹{tax.toFixed(2)}</span></div>
               </div>
               <div className="border-t pt-4 mt-4 flex justify-between items-center"><span className="text-lg font-bold text-gray-900">Total</span><span className="text-xl font-bold text-blue-600">₹{grandTotal.toFixed(2)}</span></div>
             </div>

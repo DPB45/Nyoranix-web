@@ -98,7 +98,7 @@ const updateProduct = async (req, res) => {
       // Use !== undefined here, not ||  - `0` is a legitimate "out of stock"
       // value but is falsy, so `0 || product.countInStock` would silently
       // keep the old stock number instead of actually zeroing it out.
-      product.countInStock = countInStock !== undefined ? countInStock : product.countInStock;
+      product.countInStock = countInStock !== undefined ? Math.max(0, Math.floor(Number(countInStock)) || 0) : product.countInStock;
       // Same reasoning for the New Arrival flag - `false` is falsy, so `||`
       // would make it impossible to ever un-tag a product.
       product.isNewArrival = isNewArrival !== undefined ? !!isNewArrival : product.isNewArrival;
@@ -243,7 +243,17 @@ module.exports = {
     try {
       const filter = {};
       if (req.query.isNewArrival === 'true') filter.isNewArrival = true;
-      const products = await Product.find(filter);
+
+      // The storefront list (home, shop, search) only needs card data. Product
+      // images are base64, so sending every image, review and spec table for the
+      // whole catalogue made this response huge. The admin panel asks for
+      // ?full=true to get everything (it needs it for the edit form).
+      if (req.query.full === 'true') {
+        return res.json(await Product.find(filter));
+      }
+      const products = await Product.find(filter)
+        .select({ reviews: 0, description: 0, features: 0, specifications: 0, otherSpecifications: 0, images: { $slice: 1 } })
+        .lean();
       res.json(products);
     } catch (error) {
       console.error(error);

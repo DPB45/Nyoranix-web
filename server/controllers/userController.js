@@ -1,7 +1,15 @@
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { sendOtpEmail } = require('../utils/sendEmail');
+const { sendOtpEmail, sendWelcomeEmail } = require('../utils/sendEmail');
+const { generateOtp, toStr, normalizeEmail, isEmail } = require('../utils/security');
+
+const MAX_OTP_ATTEMPTS = 5;
+const MIN_PASSWORD = 6;
+
+// Case-insensitive lookup so accounts created before emails were lower-cased
+// ("Rahul@Gmail.com") can still log in with any casing.
+const findByEmail = (email) => User.findOne({ email }).collation({ locale: 'en', strength: 2 });
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -15,8 +23,12 @@ const generateToken = (id) => {
 // @access  Public
 const authUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const email = normalizeEmail(req.body.email);
+        const password = toStr(req.body.password, 200);
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+        const user = await findByEmail(email);
 
         // Check if user exists, password matches, AND is verified
         if (user && (await user.matchPassword(password))) {
@@ -48,10 +60,20 @@ const authUser = async (req, res) => {
 // @route   POST /api/users
 // @access  Public
 const registerUser = async (req, res) => {
-    const { name, email, password } = req.body;
+    const name = toStr(req.body.name, 100);
+    const email = normalizeEmail(req.body.email);
+    const password = toStr(req.body.password, 200);
+
+    if (!name || !isEmail(email)) {
+        return res.status(400).json({ message: 'Please enter a valid name and email address' });
+    }
+    if (password.length < MIN_PASSWORD) {
+        return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+    }
+
     let existingUser;
     try {
-        existingUser = await User.findOne({ email });
+        existingUser = await findByEmail(email);
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: 'Server Error' });
@@ -63,8 +85,8 @@ const registerUser = async (req, res) => {
         return;
     }
 
-    // 1. Generate 6 digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // 1. Generate 6 digit OTP (cryptographically secure)
+    const otp = generateOtp();
     const otpExpires = Date.now() + 10 * 60 * 1000; // 10 Minutes
 
     let user;
@@ -78,6 +100,7 @@ const registerUser = async (req, res) => {
             existingUser.password = password; // re-hashed by the pre-save hook
             existingUser.otp = otp;
             existingUser.otpExpires = otpExpires;
+            existingUser.otpAttempts = 0;
             user = await existingUser.save();
         } else {
             // 2. Create User (Unverified)
@@ -123,10 +146,10 @@ const registerUser = async (req, res) => {
 // @route   POST /api/users/resend-otp
 // @access  Public
 const resendOtp = async (req, res) => {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
     let user;
     try {
-        user = await User.findOne({ email });
+        user = await findByEmail(email);
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: 'Server Error' });
@@ -141,9 +164,10 @@ const resendOtp = async (req, res) => {
         return;
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
     user.otp = otp;
     user.otpExpires = Date.now() + 10 * 60 * 1000;
+    user.otpAttempts = 0;
 
     try {
         await user.save();
@@ -159,18 +183,41 @@ const resendOtp = async (req, res) => {
 // @route   POST /api/users/verify
 // @access  Public
 const verifyEmail = async (req, res) => {
-    const { email, otp } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const otp = toStr(req.body.otp, 10);
 
     try {
-        const user = await User.findOne({ email });
+        const user = await findByEmail(email);
 
-        if (user && user.otp === otp && user.otpExpires > Date.now()) {
-          user.isVerified = true;
-          user.otp = undefined;
-          user.otpExpires = undefined;
-          await user.save();
+        if (!user || !user.otp || !user.otpExpires || user.otpExpires <= Date.now()) {
+            return res.status(400).json({ message: 'Invalid or Expired OTP' });
+        }
 
-          res.json({
+        if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
+            return res.status(429).json({ message: 'Too many wrong attempts. Please request a new code.' });
+        }
+
+        if (user.otp !== otp) {
+            user.otpAttempts = (user.otpAttempts || 0) + 1;
+            // Burn the code once the guess budget is used up
+            if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
+                user.otp = undefined;
+                user.otpExpires = undefined;
+            }
+            await user.save();
+            return res.status(400).json({ message: 'Invalid or Expired OTP' });
+        }
+
+        user.isVerified = true;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        user.otpAttempts = 0;
+        await user.save();
+
+        // Fire-and-forget: errors are handled inside sendWelcomeEmail
+        sendWelcomeEmail(user.email, user.name);
+
+        res.json({
             _id: user._id,
             name: user.name,
             email: user.email,
@@ -178,10 +225,7 @@ const verifyEmail = async (req, res) => {
             mobile: user.mobile,
             addresses: user.addresses,
             token: generateToken(user._id),
-          });
-        } else {
-          res.status(400).json({ message: 'Invalid or Expired OTP' });
-        }
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -192,31 +236,26 @@ const verifyEmail = async (req, res) => {
 // @route   POST /api/users/forgot-password
 // @access  Public
 const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-    let user;
-    try {
-        user = await User.findOne({ email });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: 'Server Error' });
-    }
-
-    if (!user) {
-        res.status(404).json({ message: 'No account found with that email address.' });
-        return;
-    }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.resetOtp = otp;
-    user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const email = normalizeEmail(req.body.email);
+    // Same answer whether or not the account exists, so this endpoint can't be
+    // used to find out which emails are registered.
+    const genericReply = { message: 'If an account exists for that email, a password reset code has been sent.' };
 
     try {
+        const user = isEmail(email) ? await findByEmail(email) : null;
+        if (!user) {
+            return res.json(genericReply);
+        }
+
+        user.resetOtp = generateOtp();
+        user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+        user.resetOtpAttempts = 0;
         await user.save();
-        await sendOtpEmail(email, otp, 'reset');
-        res.json({ message: 'A password reset code has been sent to your email.' });
+        await sendOtpEmail(user.email, user.resetOtp, 'reset');
+        res.json(genericReply);
     } catch (error) {
         console.error('Failed to send password reset email:', error);
-        res.status(500).json({ message: 'Email could not be sent. Please try again in a moment.' });
+        res.json(genericReply);
     }
 };
 
@@ -224,24 +263,37 @@ const forgotPassword = async (req, res) => {
 // @route   POST /api/users/reset-password
 // @access  Public
 const resetPassword = async (req, res) => {
-    const { email, otp, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const otp = toStr(req.body.otp, 10);
+    const password = toStr(req.body.password, 200);
     try {
-        const user = await User.findOne({ email });
+        if (password.length < MIN_PASSWORD) {
+            return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+        }
 
-        if (
-            !user ||
-            !user.resetOtp ||
-            user.resetOtp !== otp ||
-            !user.resetOtpExpires ||
-            user.resetOtpExpires < Date.now()
-        ) {
-            res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
-            return;
+        const user = await findByEmail(email);
+        const invalid = { message: 'Invalid or expired code. Please request a new one.' };
+
+        if (!user || !user.resetOtp || !user.resetOtpExpires || user.resetOtpExpires < Date.now()) {
+            return res.status(400).json(invalid);
+        }
+        if (user.resetOtpAttempts >= MAX_OTP_ATTEMPTS) {
+            return res.status(429).json({ message: 'Too many wrong attempts. Please request a new code.' });
+        }
+        if (user.resetOtp !== otp) {
+            user.resetOtpAttempts = (user.resetOtpAttempts || 0) + 1;
+            if (user.resetOtpAttempts >= MAX_OTP_ATTEMPTS) {
+                user.resetOtp = undefined;
+                user.resetOtpExpires = undefined;
+            }
+            await user.save();
+            return res.status(400).json(invalid);
         }
 
         user.password = password; // re-hashed by the pre-save hook
         user.resetOtp = undefined;
         user.resetOtpExpires = undefined;
+        user.resetOtpAttempts = 0;
         await user.save();
 
         res.json({
@@ -292,13 +344,33 @@ const updateUserProfile = async (req, res) => {
         const user = await User.findById(req.user._id);
 
         if (user) {
-            user.name = req.body.name || user.name;
-            user.email = req.body.email || user.email;
-            if (req.body.mobile !== undefined) {
-                user.mobile = req.body.mobile;
+            const newEmail = req.body.email !== undefined ? normalizeEmail(req.body.email) : user.email;
+            const newPassword = toStr(req.body.password, 200);
+            const emailChanged = newEmail && newEmail !== user.email;
+
+            if (emailChanged && !isEmail(newEmail)) {
+                return res.status(400).json({ message: 'Please enter a valid email address' });
             }
-            if (req.body.password) {
-                user.password = req.body.password;
+            if (newPassword && newPassword.length < MIN_PASSWORD) {
+                return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
+            }
+
+            // Changing the email or password is account-takeover territory (e.g. a
+            // stolen/shared logged-in session) - require the current password.
+            if (emailChanged || newPassword) {
+                const current = toStr(req.body.currentPassword, 200);
+                if (!current || !(await user.matchPassword(current))) {
+                    return res.status(400).json({ message: 'Current password is incorrect' });
+                }
+            }
+
+            user.name = toStr(req.body.name, 100) || user.name;
+            if (emailChanged) user.email = newEmail;
+            if (req.body.mobile !== undefined) {
+                user.mobile = toStr(req.body.mobile, 20);
+            }
+            if (newPassword) {
+                user.password = newPassword;
             }
             const updatedUser = await user.save();
             res.json({
@@ -329,7 +401,10 @@ const updateUserProfile = async (req, res) => {
 // @access  Private
 const addUserAddress = async (req, res) => {
     try {
-        const { address, city, postalCode, country } = req.body;
+        const address = toStr(req.body.address, 300);
+        const city = toStr(req.body.city, 100);
+        const postalCode = toStr(req.body.postalCode, 12);
+        const country = toStr(req.body.country, 60);
 
         if (!address || !city) {
             return res.status(400).json({ message: 'Address and city are required' });

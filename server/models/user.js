@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     isAdmin: { type: Boolean, required: true, default: false }, // Critical for Admin Panel
     mobile: { type: String, default: '' },
@@ -20,10 +20,12 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     otp: { type: String },
     otpExpires: { type: Date },
+    otpAttempts: { type: Number, default: 0 },   // wrong guesses for the current verify code
 
     // === ADDED FIELDS FOR PASSWORD RESET ===
     resetOtp: { type: String },
-    resetOtpExpires: { type: Date }
+    resetOtpExpires: { type: Date },
+    resetOtpAttempts: { type: Number, default: 0 }
 }, { timestamps: true });
 
 // Method to check if password matches

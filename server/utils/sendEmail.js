@@ -1,4 +1,7 @@
 const nodemailer = require("nodemailer");
+const { escapeHtml } = require("./security");
+
+const SITE_URL = (process.env.SITE_URL || (process.env.CLIENT_URL || "https://nyoranix-web-eta.vercel.app").split(",")[0]).trim();
 
 // Brevo SMTP transporter
 const transporter = nodemailer.createTransport({
@@ -71,11 +74,11 @@ const sendWelcomeEmail = async (email, name) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
 
           <h2 style="color: #2563EB; text-align: center;">
-            Welcome to Nyoranix, ${name}!
+            Welcome to Nyoranix, ${escapeHtml(name)}!
           </h2>
 
           <p style="font-size: 16px; color: #333;">
-            Hi <strong>${name}</strong>,
+            Hi <strong>${escapeHtml(name)}</strong>,
           </p>
 
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
@@ -85,7 +88,7 @@ const sendWelcomeEmail = async (email, name) => {
 
           <div style="text-align: center; margin: 30px 0;">
             <a
-              href="https://nyoranix-web-eta.vercel.app/shop"
+              href="${SITE_URL}/shop"
               style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"
             >
               Start Shopping
@@ -128,7 +131,7 @@ const sendInquiryNotification = async (inquiry) => {
       // Reply directly to the customer
       replyTo: inquiry.email,
 
-      subject: `New Contact Message: ${inquiry.subject}`,
+      subject: `New Contact Message: ${String(inquiry.subject).replace(/[\r\n]+/g, ' ').slice(0, 120)}`,
 
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -144,7 +147,7 @@ const sendInquiryNotification = async (inquiry) => {
                 Name
               </td>
               <td style="padding: 8px 0;">
-                ${inquiry.name}
+                ${escapeHtml(inquiry.name)}
               </td>
             </tr>
 
@@ -153,8 +156,8 @@ const sendInquiryNotification = async (inquiry) => {
                 Email
               </td>
               <td style="padding: 8px 0;">
-                <a href="mailto:${inquiry.email}">
-                  ${inquiry.email}
+                <a href="mailto:${escapeHtml(inquiry.email)}">
+                  ${escapeHtml(inquiry.email)}
                 </a>
               </td>
             </tr>
@@ -164,7 +167,7 @@ const sendInquiryNotification = async (inquiry) => {
                 Subject
               </td>
               <td style="padding: 8px 0;">
-                ${inquiry.subject}
+                ${escapeHtml(inquiry.subject)}
               </td>
             </tr>
 
@@ -177,7 +180,7 @@ const sendInquiryNotification = async (inquiry) => {
             </p>
 
             <p style="margin: 8px 0 0; font-size: 15px; color: #333; white-space: pre-wrap; line-height: 1.6;">
-              ${inquiry.message}
+              ${escapeHtml(inquiry.message)}
             </p>
 
           </div>

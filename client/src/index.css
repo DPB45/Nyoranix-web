@@ -16,3 +16,38 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+/* ---------- Accessibility ---------- */
+:focus-visible { outline: 2px solid #D32F2F; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- Dark mode ----------
+   Toggled by adding `dark` to <html> (ThemeProvider). Most pages were written
+   with light-only utility classes, so remap those globally instead of editing
+   every page. */
+html.dark { color-scheme: dark; }
+.dark body, .dark .bg-nyoranixWhite { background-color: #0d0d10; color: #e5e7eb; }
+.dark .bg-white { background-color: #17171b; }
+.dark .bg-gray-50 { background-color: #101013; }
+.dark .bg-gray-100 { background-color: #202026; }
+.dark .bg-gray-200 { background-color: #2a2a31; }
+.dark .hover\:bg-gray-50:hover { background-color: #202026; }
+.dark .hover\:bg-gray-100:hover { background-color: #2a2a31; }
+.dark .text-gray-900, .dark .text-gray-800 { color: #f3f4f6; }
+.dark .text-gray-700 { color: #d1d5db; }
+.dark .text-gray-600 { color: #b6bcc6; }
+.dark .text-gray-500 { color: #9aa1ad; }
+.dark .text-gray-400 { color: #7d8492; }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: #2c2c34; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #2c2c34; }
+.dark .bg-blue-50, .dark .bg-red-50, .dark .bg-green-50, .dark .bg-orange-50, .dark .bg-yellow-50 { background-color: #1d1d23; }
+.dark .bg-green-100 { background-color: #12331f; }
+.dark .bg-red-100 { background-color: #3b1515; }
+.dark .bg-yellow-100 { background-color: #3a2f0e; }
+.dark .bg-blue-100 { background-color: #14284a; }
+.dark input, .dark select, .dark textarea { background-color: #17171b; color: #f3f4f6; border-color: #33333c; }
+.dark input::placeholder, .dark textarea::placeholder { color: #6b7280; }
+.dark img.mix-blend-multiply { mix-blend-mode: normal; }
+.dark ::-webkit-scrollbar-track { background: #17171b; }
+.dark ::-webkit-scrollbar-thumb { background: #444; }

@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { logout } from './userSlice';
 
 // Cart persistence is handled entirely by redux-persist (see redux/store.js,
 // which whitelists the 'cart' slice) and PersistGate in main.jsx. Manual
@@ -8,7 +9,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   cartItems: [],
   shippingAddress: {},
-  paymentMethod: 'PayPal',
+  paymentMethod: 'Cash on Delivery',
 };
 
 const cartSlice = createSlice({
@@ -57,10 +58,30 @@ const cartSlice = createSlice({
       state.paymentMethod = action.payload;
     },
 
+    // Refresh cart lines with the server's current price/stock (checkout quote).
+    // `items` = [{ id, price, countInStock, quantity }]; lines not listed are dropped.
+    syncCartItems: (state, action) => {
+      const fresh = new Map((action.payload || []).map((i) => [String(i.id), i]));
+      state.cartItems = state.cartItems
+        .filter((x) => fresh.has(String(x.id)))
+        .map((x) => {
+          const f = fresh.get(String(x.id));
+          return { ...x, price: f.price, countInStock: f.countInStock, quantity: Math.min(x.quantity, f.quantity ?? x.quantity) };
+        });
+    },
+
     // === DEFINITION: Clearing the cart ===
     clearCartItems: (state) => {
       state.cartItems = [];
     },
+  },
+  // Signing out also empties the (persisted) cart and saved shipping address,
+  // so the next person on a shared computer doesn't inherit them.
+  extraReducers: (builder) => {
+    builder.addCase(logout, (state) => {
+      state.cartItems = [];
+      state.shippingAddress = {};
+    });
   },
 });
 
@@ -71,6 +92,7 @@ export const {
   updateQuantity,
   saveShippingAddress,
   savePaymentMethod,
+  syncCartItems,
   clearCartItems // <--- CRITICAL: Must be exported here
 } = cartSlice.actions;
 

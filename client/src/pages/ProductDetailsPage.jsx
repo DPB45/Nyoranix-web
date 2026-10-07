@@ -5,6 +5,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
+import { openCartDrawer } from '../redux/slices/uiSlice';
+import { fetchAllProducts, toCartItem } from '../utils/productsCache';
 import { confirmToast } from '../utils/confirmToast';
 // === 1. ADD WHATSAPP ICON ===
 import {
@@ -36,19 +38,20 @@ const ProductDetailsPage = () => {
   const [reviewSuccess, setReviewSuccess] = useState('');
 
   // === FETCH DATA ===
-  const fetchProductData = async () => {
+  // `showSpinner` is only true when the product itself changes. Re-fetching after a
+  // review/like used to blank the whole page and re-download the entire catalogue.
+  const fetchProductData = async (showSpinner = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       const { data } = await axios.get(`${API_URL}/api/products/${id}`);
       setProduct(data);
-
-      const allProductsRes = await axios.get(`${API_URL}/api/products`);
-      const related = allProductsRes.data
-        .filter(p => p._id !== id && p.category === data.category)
-        .slice(0, 4);
-      setRelatedProducts(related);
-
+      setError(null);
       setLoading(false);
+
+      // Related items come from the shared cached list (no extra full download)
+      fetchAllProducts()
+        .then((all) => setRelatedProducts(all.filter((p) => p._id !== id && p.category === data.category).slice(0, 4)))
+        .catch(() => setRelatedProducts([]));
     } catch (err) {
       setError(err.response?.data?.message || 'Product not found');
       setLoading(false);
@@ -56,7 +59,7 @@ const ProductDetailsPage = () => {
   };
 
   useEffect(() => {
-    fetchProductData();
+    fetchProductData(true);
     window.scrollTo(0, 0);
     setActiveTab('Description');
     setQuantity(1);
@@ -79,14 +82,14 @@ const ProductDetailsPage = () => {
   // === HANDLERS ===
   const handleAddToCart = () => {
     if (product && product.countInStock > 0) {
-      dispatch(addToCart({ ...product, id: product._id, quantity: quantity, countInStock: product.countInStock }));
-      toast.success(`${product.name} added to cart!`);
+      dispatch(addToCart(toCartItem(product, quantity)));
+      dispatch(openCartDrawer()); // slide-in cart confirms the add
     }
   };
 
   const handleBuyNow = () => {
     if (product && product.countInStock > 0) {
-      dispatch(addToCart({ ...product, id: product._id, quantity: quantity, countInStock: product.countInStock }));
+      dispatch(addToCart(toCartItem(product, quantity)));
       navigate('/checkout');
     }
   };
@@ -280,10 +283,9 @@ const ProductDetailsPage = () => {
                 <div className="mb-6">
                   <div className="flex justify-between text-xs font-bold mb-1">
                     <span className="text-orange-600">Hurry! Only {product.countInStock} left in stock</span>
-                    <span className="text-gray-400">84% Sold</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${(product.countInStock / 20) * 100}%` }}></div>
+                    <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.max(8, (product.countInStock / 10) * 100)}%` }}></div>
                   </div>
                 </div>
               )}

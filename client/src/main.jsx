@@ -6,7 +6,11 @@ import { PersistGate } from 'redux-persist/integration/react'; // <--- 1. ADD IM
 import { store, persistor } from './redux/store'; // <--- 2. UPDATE IMPORT
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
+import ThemeProvider from './components/common/ThemeProvider';
+import { setupAxios } from './setupAxios';
 import './index.css';
+
+setupAxios(store); // global 401 (expired login) handling
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -15,7 +19,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <PersistGate loading={null} persistor={persistor}>
         <HelmetProvider>
         <BrowserRouter>
-          <App />
+          <ThemeProvider>
+            <App />
+          </ThemeProvider>
         </BrowserRouter>
         </HelmetProvider>
       </PersistGate>

@@ -1,11 +1,11 @@
-import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { FaChevronDown, FaChevronUp, FaShoppingCart, FaEye, FaBolt } from 'react-icons/fa';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
+import { openCartDrawer } from '../redux/slices/uiSlice';
+import { fetchAllProducts, toCartItem } from '../utils/productsCache';
 import Meta from '../components/common/Meta';
 import StarRating from '../components/common/StarRating';
 
@@ -29,7 +29,7 @@ const FilterSection = ({ title, children, defaultOpen = true }) => {
 const ShopPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('search') || "";
   const categoryParam = searchParams.get('category') || "";
 
@@ -55,9 +55,7 @@ const ShopPage = () => {
   // because navigating from one category card to another doesn't remount
   // this page - only the query string changes.
   useEffect(() => {
-    if (categoryParam) {
-      setSelectedCategories([categoryParam]);
-    }
+    setSelectedCategories(categoryParam ? [categoryParam] : []);
   }, [categoryParam]);
 
   // === UPDATED CATEGORIES LIST ===
@@ -80,7 +78,7 @@ const ShopPage = () => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const { data } = await axios.get(`${API_URL}/api/products`);
+        const data = await fetchAllProducts();
         setAllProducts(data);
         setFilteredProducts(data);
 
@@ -106,7 +104,11 @@ const ShopPage = () => {
     let result = [...allProducts];
 
     if (searchQuery) {
-      result = result.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      result = result.filter(p => {
+        const hay = `${p.name || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase();
+        return terms.every(t => hay.includes(t));
+      });
     }
 
     if (selectedCategories.length > 0) {
@@ -130,24 +132,33 @@ const ShopPage = () => {
   }, [searchQuery, selectedCategories, priceRange, maxPriceLimit, sortBy, allProducts]);
 
   const handleCheckboxChange = (e, value) => {
-    if (e.target.checked) {
-      setSelectedCategories([...selectedCategories, value]);
-    } else {
-      setSelectedCategories(selectedCategories.filter(item => item !== value));
+    const next = e.target.checked
+      ? [...selectedCategories, value]
+      : selectedCategories.filter(item => item !== value);
+    setSelectedCategories(next);
+
+    // If this page was opened as /shop?category=X, drop the param once the user
+    // edits the filter - otherwise the effect above would immediately restore it
+    // and the box could never be unticked.
+    if (categoryParam) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('category');
+      setSearchParams(params, { replace: true });
     }
+  };
+
+  // Reset clears every filter in place (no full page reload / refetch)
+  const handleReset = () => {
+    setSelectedCategories([]);
+    setPriceRange(maxPriceLimit);
+    setSortBy('Relevance');
+    setSearchParams({}, { replace: true }); // also clears ?category= and ?search=
   };
 
   const handleAddToCart = (product) => {
     if (product.countInStock > 0) {
-      dispatch(addToCart({
-        id: product._id,
-        name: product.name,
-        price: product.price,
-        image: product.images?.[0] || product.image,
-        quantity: 1,
-        countInStock: product.countInStock
-      }));
-      toast.success(`${product.name} added to cart!`);
+      dispatch(addToCart(toCartItem(product, 1)));
+      dispatch(openCartDrawer());
     } else {
       toast.error("Item is out of stock");
     }
@@ -155,14 +166,7 @@ const ShopPage = () => {
 
   const handleBuyNow = (product) => {
     if (product.countInStock > 0) {
-      dispatch(addToCart({
-        id: product._id,
-        name: product.name,
-        price: product.price,
-        image: product.images?.[0] || product.image,
-        quantity: 1,
-        countInStock: product.countInStock
-      }));
+      dispatch(addToCart(toCartItem(product, 1)));
       navigate('/checkout');
     } else {
       toast.error("Item is out of stock");
@@ -175,7 +179,7 @@ const ShopPage = () => {
   const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
 
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const paginate = (pageNumber) => { setCurrentPage(pageNumber); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   return (
     <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 font-sans bg-gray-50 min-h-screen">
@@ -193,7 +197,7 @@ const ShopPage = () => {
       <aside className="lg:w-1/4 pr-4 bg-white p-6 rounded-lg shadow-sm h-fit">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Filters</h2>
-          <button onClick={() => window.location.reload()} className="text-xs text-blue-600 hover:underline">Reset</button>
+          <button onClick={handleReset} className="text-xs text-blue-600 hover:underline">Reset</button>
         </div>
 
         {/* Price Range */}
@@ -219,6 +223,7 @@ const ShopPage = () => {
               <input
                 type="checkbox"
                 className="rounded text-blue-600 focus:ring-blue-500"
+                checked={selectedCategories.includes(cat)}
                 onChange={(e) => handleCheckboxChange(e, cat)}
               />
               <span className="text-gray-700 text-sm">{cat}</span>
@@ -235,7 +240,7 @@ const ShopPage = () => {
             genuinely distinct content rather than a copy of the generic
             shop page with a filter silently applied. */}
         <h1 className="text-2xl font-bold text-gray-900 mb-4">
-          {selectedCategories.length === 1 ? selectedCategories[0] : "Shop All Products"}
+          {selectedCategories.length === 1 ? selectedCategories[0] : searchQuery ? `Results for “${searchQuery}”` : "Shop All Products"}
         </h1>
 
         {/* Sorting Bar */}

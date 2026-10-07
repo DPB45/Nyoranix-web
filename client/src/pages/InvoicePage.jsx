@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { FaPrint } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 // === 1. ADD IMPORTS ===
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -41,7 +42,10 @@ const InvoicePage = () => {
   const downloadPDF = () => {
     const input = document.getElementById('invoice-content'); // Target specific ID
 
-    html2canvas(input, { scale: 2 }).then((canvas) => {
+    if (!input) return;
+
+    // onclone: always render the invoice in light mode, even if the site is in dark mode
+    html2canvas(input, { scale: 2, onclone: (doc) => doc.documentElement.classList.remove('dark') }).then((canvas) => {
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -68,6 +72,9 @@ const InvoicePage = () => {
       }
 
       pdf.save(`invoice_${order._id}.pdf`);
+    }).catch((err) => {
+      console.error('Invoice PDF failed:', err);
+      toast.error('Could not create the PDF. Please try again.');
     });
   };
 
@@ -162,7 +169,7 @@ const InvoicePage = () => {
               <span>₹{order.shippingPrice}</span>
             </div>
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Tax (18%):</span>
+              <span>{order.taxIncluded ? 'GST (18%, included in price):' : 'Tax (18%):'}</span>
               <span>₹{order.taxPrice}</span>
             </div>
             <div className="flex justify-between text-lg font-bold text-gray-800 border-t-2 border-gray-100 pt-2 mt-2">

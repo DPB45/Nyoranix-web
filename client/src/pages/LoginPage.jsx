@@ -1,5 +1,6 @@
 import { API_URL } from '../config/api';
 import Meta from '../components/common/Meta';
+import { safeRedirect } from '../utils/safeRedirect';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,7 +17,7 @@ const LoginPage = () => {
   const { userInfo } = useSelector((state) => state.user);
   const { search } = useLocation();
   const sp = new URLSearchParams(search);
-  const redirect = sp.get('redirect') || '/';
+  const redirect = safeRedirect(sp.get('redirect'));
 
   useEffect(() => {
     if (userInfo) {
@@ -86,7 +87,7 @@ const LoginPage = () => {
         <div className="text-center mt-4">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <Link to={redirect ? `/register?redirect=${redirect}` : '/register'} className="font-medium text-red-600 hover:text-red-500">
+            <Link to={redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register'} className="font-medium text-red-600 hover:text-red-500">
               Register here
             </Link>
           </p>

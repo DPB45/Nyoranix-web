@@ -7,6 +7,7 @@ import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import WhatsAppButton from './components/common/WhatsAppButton';
 import BackToTopButton from './components/common/BackToTopButton';
+import CartDrawer from './components/common/CartDrawer';
 import ScrollToTop from './components/common/ScrollToTop'; // 2. Import ScrollToTop
 import AdminRoute from './components/admin/AdminRoute';
 import { SITE_URL } from './components/common/Meta';
@@ -88,9 +89,12 @@ function App() {
         </script>
       )}
 
+      {!isAdminRoute && (
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-nyoranixRed focus:text-white focus:px-4 focus:py-2 focus:rounded-lg">Skip to content</a>
+      )}
       {!isAdminRoute && <Navbar />}
 
-      <main className="flex-grow">
+      <main id="main-content" className="flex-grow">
         {/* 5. Wrap Routes in Suspense */}
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -131,6 +135,7 @@ function App() {
         </Suspense>
       </main>
 
+      {!isAdminRoute && <CartDrawer />}
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <WhatsAppButton />}
       {!isAdminRoute && <BackToTopButton />}

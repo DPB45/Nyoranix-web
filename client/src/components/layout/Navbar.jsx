@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { FaSearch, FaShoppingCart, FaUser, FaBars, FaTimes, FaSignOutAlt } from 'react-icons/fa';
+import { fetchAllProducts } from '../../utils/productsCache';
+import { openCartDrawer } from '../../redux/slices/uiSlice';
+import ThemeToggle from '../common/ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
 
 import { logout } from '../../redux/slices/userSlice';
 import logo from '../../assets/logo.jpg';
@@ -79,13 +81,14 @@ const Navbar = () => {
     debounceRef.current = setTimeout(async () => {
       latestQueryRef.current = query;
       try {
-        const { data } = await axios.get(`${API_URL}/api/products`);
+        // Shared cached catalogue - no new download per search
+        const data = await fetchAllProducts();
         // If the user kept typing while this request was in flight, a newer
         // request has already been scheduled - drop this stale result.
         if (latestQueryRef.current !== query) return;
         const filtered = data.filter(p =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.category.toLowerCase().includes(query.toLowerCase())
+          (p.name || '').toLowerCase().includes(query.toLowerCase()) ||
+          (p.category || '').toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
         setSuggestions(filtered);
       } catch (error) {
@@ -123,6 +126,14 @@ const Navbar = () => {
     { name: "About", path: "/about" },
     { name: "Support", path: "/contact" },
   ];
+
+  // Slide-in drawer everywhere except on the cart/checkout pages themselves
+  const handleCartClick = (e) => {
+    setIsMobileMenuOpen(false);
+    if (location.pathname === '/cart' || location.pathname === '/checkout') return;
+    e.preventDefault();
+    dispatch(openCartDrawer());
+  };
 
   const isActive = (path) => location.pathname === path;
 
@@ -241,7 +252,8 @@ const Navbar = () => {
               )}
 
               {/* Cart */}
-              <Link to="/cart" onClick={() => setIsMobileMenuOpen(false)} className="relative hover:text-nyoranixRed transition-colors">
+              <ThemeToggle />
+              <Link to="/cart" aria-label="Open cart" onClick={handleCartClick} className="relative hover:text-nyoranixRed transition-colors">
                 <FaShoppingCart size={18} />
                 <AnimatePresence>
                   {totalQuantity > 0 && (

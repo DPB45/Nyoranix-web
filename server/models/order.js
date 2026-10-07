@@ -31,6 +31,10 @@ const orderSchema = new mongoose.Schema({
     itemsPrice: { type: Number, required: true, default: 0.0 },
     shippingPrice: { type: Number, required: true, default: 0.0 },
     taxPrice: { type: Number, required: true, default: 0.0 },
+    // true = prices already include GST, so taxPrice is the GST portion INSIDE
+    // itemsPrice and is not added again. Orders placed before this fix
+    // (field missing) had tax added on top - invoices handle both.
+    taxIncluded: { type: Boolean, default: false },
     totalPrice: { type: Number, required: true, default: 0.0 },
     isPaid: { type: Boolean, required: true, default: false },
     paidAt: { type: Date },

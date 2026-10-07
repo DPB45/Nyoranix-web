@@ -1,23 +1,35 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaMinus, FaPlus, FaTrash, FaShoppingBag, FaArrowRight } from 'react-icons/fa';
-import { closeCartDrawer, removeFromCart, updateQuantity } from '../../redux/slices/cartSlice';
-
-const FREE_SHIPPING = 2000;
+import { removeFromCart, updateQuantity } from '../../redux/slices/cartSlice';
+import { closeCartDrawer } from '../../redux/slices/uiSlice';
+import { FREE_SHIPPING_THRESHOLD } from '../../constants';
 
 const CartDrawer = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { cartItems, isDrawerOpen } = useSelector(state => state.cart);
+  const { cartItems } = useSelector(state => state.cart);
+  const userInfo = useSelector(state => state.user.userInfo);
+  const isDrawerOpen = useSelector(state => state.ui.cartDrawerOpen);
   const subtotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
-  const progress = Math.min(100, (subtotal / FREE_SHIPPING) * 100);
-  const remaining = Math.max(0, FREE_SHIPPING - subtotal);
+  // Standard shipping is free ABOVE the threshold (matches the server rule)
+  const unlocked = subtotal > FREE_SHIPPING_THRESHOLD;
+  const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+
+  // Esc closes the drawer
+  useEffect(() => {
+    if (!isDrawerOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') dispatch(closeCartDrawer()); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDrawerOpen, dispatch]);
 
   const checkout = () => {
     dispatch(closeCartDrawer());
-    navigate('/checkout');
+    navigate(userInfo ? '/checkout' : '/login?redirect=/checkout');
   };
 
   return (
@@ -27,17 +39,17 @@ const CartDrawer = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => dispatch(closeCartDrawer())}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[90]" />
-          <motion.aside initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+          <motion.aside role="dialog" aria-modal="true" aria-label="Shopping cart" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
             className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-zinc-950 text-gray-900 dark:text-white z-[100] shadow-2xl flex flex-col">
             <header className="p-5 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between">
               <div><h2 className="text-xl font-extrabold">Your Cart</h2><p className="text-xs text-gray-500">{cartItems.length} item{cartItems.length !== 1 ? 's' : ''}</p></div>
-              <button onClick={() => dispatch(closeCartDrawer())} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800"><FaTimes /></button>
+              <button onClick={() => dispatch(closeCartDrawer())} aria-label="Close cart" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800"><FaTimes /></button>
             </header>
 
             <div className="px-5 py-4 border-b border-gray-100 dark:border-zinc-800">
               <div className="flex justify-between text-xs font-semibold mb-2">
-                <span>{remaining > 0 ? `₹${remaining.toLocaleString('en-IN')} away from free shipping` : '🎉 Free shipping unlocked!'}</span>
+                <span>{!unlocked ? `Add ₹${(remaining + 1).toLocaleString('en-IN')} more for free shipping` : '🎉 Free shipping unlocked!'}</span>
                 <span>{Math.round(progress)}%</span>
               </div>
               <div className="h-2 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -61,7 +73,7 @@ const CartDrawer = () => {
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2">
                       <p className="font-semibold text-sm line-clamp-2">{item.name}</p>
-                      <button onClick={() => dispatch(removeFromCart(item.id))} className="text-gray-400 hover:text-red-600"><FaTrash size={12} /></button>
+                      <button onClick={() => dispatch(removeFromCart(item.id))} aria-label={`Remove ${item.name}`} className="text-gray-400 hover:text-red-600"><FaTrash size={12} /></button>
                     </div>
                     <p className="text-nyoranixRed font-bold mt-1">₹{Number(item.price).toLocaleString('en-IN')}</p>
                     <div className="flex items-center gap-2 mt-2">

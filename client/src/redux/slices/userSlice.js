@@ -1,9 +1,16 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 // Load user from local storage
-const userInfoFromStorage = localStorage.getItem('userInfo')
-  ? JSON.parse(localStorage.getItem('userInfo'))
-  : null;
+// (a corrupted/blocked localStorage entry must not crash the whole app on startup)
+const loadUser = () => {
+  try {
+    const raw = localStorage.getItem('userInfo');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+const userInfoFromStorage = loadUser();
 
 const initialState = {
   userInfo: userInfoFromStorage,
@@ -25,9 +32,8 @@ const userSlice = createSlice({
     logout: (state) => {
       state.userInfo = null;
       localStorage.removeItem('userInfo');
-      // Optional: Clean up other data on logout
-      localStorage.removeItem('cartItems');
-      localStorage.removeItem('shippingAddress');
+      // The cart/shipping address live in the persisted `cart` slice, which
+      // clears itself when this action fires (see cartSlice extraReducers).
     }
   },
 });

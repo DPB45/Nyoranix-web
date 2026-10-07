@@ -1,4 +1,6 @@
 import { API_URL } from '../../config/api';
+import { parseCSV } from '../../utils/csv';
+import { invalidateProducts } from '../../utils/productsCache';
 import React, { useState, useEffect } from 'react';
 import Meta from '../../components/common/Meta';
 import { useSelector } from 'react-redux';
@@ -82,13 +84,14 @@ const AdminDashboardPage = () => {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         const [prodRes, orderRes, userRes, settingsRes, messageRes] = await Promise.all([
-          axios.get(`${API_URL}/api/products`),
+          axios.get(`${API_URL}/api/products?full=true`),
           axios.get(`${API_URL}/api/orders`, config),
           axios.get(`${API_URL}/api/users`, config),
           axios.get(`${API_URL}/api/config`),
           axios.get(`${API_URL}/api/inquiry`, config)
         ]);
 
+        invalidateProducts();
         setProducts(Array.isArray(prodRes.data) ? prodRes.data : prodRes.data.products || []);
         setOrders(orderRes.data);
         setUsers(userRes.data);
@@ -137,7 +140,8 @@ const AdminDashboardPage = () => {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         const product = products.find(p => p._id === id);
         if(!product) return;
-        await axios.put(`${API_URL}/api/products/${id}`, { ...product, countInStock: Number(newStock) }, config);
+        await axios.put(`${API_URL}/api/products/${id}`, { countInStock: Number(newStock) }, config);
+        invalidateProducts();
         toast.success("Stock Updated Successfully!");
         fetchData();
     } catch (e) { toast.error("Failed to update stock."); }
@@ -146,7 +150,8 @@ const AdminDashboardPage = () => {
   const handleToggleNewArrival = async (product) => {
     try {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
-      await axios.put(`${API_URL}/api/products/${product._id}`, { ...product, isNewArrival: !product.isNewArrival }, config);
+      await axios.put(`${API_URL}/api/products/${product._id}`, { isNewArrival: !product.isNewArrival }, config);
+      invalidateProducts();
       fetchData();
     } catch (e) { toast.error("Failed to update New Arrival status"); }
   };
@@ -197,18 +202,18 @@ const AdminDashboardPage = () => {
       }
 
       // Skip Header Row - CSV must start with a header row or the first real product gets silently dropped
-      const rows = text.slice(text.indexOf('\n') + 1).split('\n');
+      const rows = parseCSV(text).slice(1);
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
 
       const skipped = []; // rows we never attempted to upload (bad data)
       const jobs = []; // { rowNum, name, request: Promise }
 
-      rows.forEach((rowStr, i) => {
+      rows.forEach((row, i) => {
         const rowNum = i + 2; // +1 for 0-index, +1 for the header row we skipped
-        if (!rowStr.trim()) return; // truly blank line, not worth reporting
+        if (row.every((cell) => !String(cell).trim())) return; // truly blank line, not worth reporting
 
-        const row = rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        const clean = (str) => str ? str.replace(/^"|"$/g, '').trim() : '';
+        // cells are already unquoted by parseCSV
+        const clean = (str) => str ? String(str).trim() : '';
 
         // COLUMN MAPPING:
         // 0: Images (URLs separated by |)  1: Name  2: Brand  3: Category

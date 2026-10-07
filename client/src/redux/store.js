@@ -1,5 +1,4 @@
-import { configureStore } from '@reduxjs/toolkit';
-import { combineReducers } from 'redux';
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 
 // === FIX: Create custom storage to avoid Vite import issues ===
@@ -11,18 +10,20 @@ const storage = {
 
 import cartReducer from './slices/cartSlice';
 import userReducer from './slices/userSlice';
+import uiReducer from './slices/uiSlice';
 
 // === 1. CREATE ROOT REDUCER ===
 const rootReducer = combineReducers({
   cart: cartReducer,
   user: userReducer,
+  ui: uiReducer,
 });
 
 // === 2. CONFIGURE PERSISTENCE ===
 const persistConfig = {
   key: 'root',
   storage, // Uses our custom storage defined above
-  whitelist: ['cart'], // Only persist the cart
+  whitelist: ['cart'], // Only persist the cart (user has its own localStorage key; ui is transient)
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

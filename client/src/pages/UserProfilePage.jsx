@@ -26,6 +26,7 @@ const UserProfilePage = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState(null);
@@ -71,6 +72,14 @@ const UserProfilePage = () => {
       setMessage({ type: 'error', text: 'Passwords do not match' });
       return;
     }
+    if (password && password.length < 6) {
+      setMessage({ type: 'error', text: 'New password must be at least 6 characters' });
+      return;
+    }
+    if (password && !currentPassword) {
+      setMessage({ type: 'error', text: 'Enter your current password to set a new one' });
+      return;
+    }
 
     try {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
@@ -79,7 +88,9 @@ const UserProfilePage = () => {
         name,
         email,
         mobile,
-        password: password || undefined
+        password: password || undefined,
+        // required by the server when changing the password
+        currentPassword: password ? currentPassword : undefined
       };
 
       const { data } = await axios.put(`${API_URL}/api/users/profile`, payload, config);
@@ -87,6 +98,7 @@ const UserProfilePage = () => {
       dispatch(setCredentials(data));
       setMobile(data.mobile || '');
       setMessage({ type: 'success', text: 'Profile Updated Successfully!' });
+      setCurrentPassword('');
       setPassword('');
       setConfirmPassword('');
     } catch (err) {
@@ -206,6 +218,7 @@ const UserProfilePage = () => {
               <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
                 <div className="mb-6 flex items-center gap-2"><FaLock className="text-blue-600" /><h2 className="text-lg font-bold text-gray-800">Security (Change Password)</h2></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Current Password</label><input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 outline-none" placeholder="Required only when changing your password" /></div>
                   <div><label className="block text-xs font-bold text-gray-700 mb-1">New Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 outline-none" placeholder="Leave blank to keep current" /></div>
                   <div><label className="block text-xs font-bold text-gray-700 mb-1">Confirm Password</label><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 outline-none" placeholder="Confirm new password" /></div>
                   <div className="md:col-span-2 flex justify-end"><button onClick={handleUpdateProfile} className="text-blue-600 font-bold text-sm hover:underline">Update Password</button></div>
