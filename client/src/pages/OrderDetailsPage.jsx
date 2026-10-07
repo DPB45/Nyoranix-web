@@ -6,8 +6,6 @@ import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { FaCheckCircle, FaTruck, FaBox, FaFilePdf, FaFileInvoice, FaArrowLeft } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 const OrderDetailsPage = () => {
   const { id } = useParams();
@@ -37,52 +35,6 @@ const OrderDetailsPage = () => {
   }, [id, userInfo]);
 
   // === OPTION 1: DOWNLOAD DIRECT PDF ===
-  const downloadInvoice = () => {
-    try {
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.setTextColor(220, 38, 38);
-    doc.text("Nyoranix", 14, 22);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text("Smart Made Simple", 14, 28);
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text("INVOICE", 150, 22);
-    doc.setFontSize(10);
-    doc.text(`Order ID: ${order._id}`, 150, 28);
-    doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 150, 34);
-    doc.line(14, 40, 196, 40);
-
-    const tableColumn = ["Product", "Qty", "Unit Price", "Total"];
-    const tableRows = [];
-    order.orderItems.forEach(item => {
-      tableRows.push([item.name, item.quantity, `Rs. ${item.price}`, `Rs. ${item.quantity * item.price}`]);
-    });
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 50,
-    });
-
-    // Totals block: GST is shown as "included" for orders priced GST-inclusive
-    let y = doc.lastAutoTable.finalY + 10;
-    doc.text(`Subtotal: Rs. ${order.itemsPrice}`, 140, y); y += 6;
-    doc.text(`Shipping: Rs. ${order.shippingPrice}`, 140, y); y += 6;
-    if (order.taxIncluded) {
-      doc.text(`(Includes GST 18%: Rs. ${order.taxPrice})`, 140, y); y += 6;
-    } else {
-      doc.text(`Tax (18%): Rs. ${order.taxPrice}`, 140, y); y += 6;
-    }
-    doc.setFont(undefined, 'bold');
-    doc.text(`Total: Rs. ${order.totalPrice}`, 140, y);
-    doc.save(`Invoice_${order._id}.pdf`);
-    } catch (err) {
-      console.error('Invoice PDF failed:', err);
-      toast.error('Could not create the invoice PDF. Please try again.');
-    }
-  };
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
   if (error) return <div className="p-10 text-center text-red-500">Error: {error}</div>;
@@ -102,13 +54,13 @@ const OrderDetailsPage = () => {
           </div>
 
           <div className="flex gap-3">
-            {/* OPTION 1: Download PDF Directly */}
-            <button
-              onClick={downloadInvoice}
+            {/* Both buttons use the invoice page's PDF, so the file is always the same */}
+            <Link
+              to={`/order/${order._id}/invoice?download=1`}
               className="bg-white text-blue-600 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-gray-100 transition shadow"
             >
               <FaFilePdf /> PDF
-            </button>
+            </Link>
 
             {/* OPTION 2: View Printable Invoice Page */}
             <Link

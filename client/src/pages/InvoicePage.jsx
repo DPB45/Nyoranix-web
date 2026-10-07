@@ -1,7 +1,7 @@
 import { API_URL } from '../config/api';
 import Meta from '../components/common/Meta';
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { FaPrint } from 'react-icons/fa';
@@ -12,6 +12,8 @@ import jsPDF from 'jspdf';
 
 const InvoicePage = () => {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoDownloaded = useRef(false);
   const { userInfo } = useSelector((state) => state.user);
 
   const [order, setOrder] = useState(null);
@@ -37,6 +39,21 @@ const InvoicePage = () => {
       setLoading(false);
     }
   }, [id, userInfo]);
+
+  // ?download=1 (from the order page's PDF button): download automatically once the
+  // invoice has rendered, then drop the flag so a refresh doesn't download again.
+  useEffect(() => {
+    if (!order || autoDownloaded.current || searchParams.get('download') !== '1') return undefined;
+    const t = setTimeout(() => {
+      autoDownloaded.current = true; // set inside the timer so React StrictMode's double effect run still downloads once
+      downloadPDF();
+      const next = new URLSearchParams(searchParams);
+      next.delete('download');
+      setSearchParams(next, { replace: true });
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order]);
 
   // === 2. ADD DOWNLOAD FUNCTION ===
   const downloadPDF = () => {

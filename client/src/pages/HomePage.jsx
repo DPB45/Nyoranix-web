@@ -2,7 +2,7 @@ import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   FaArrowRight, FaMicrochip, FaIndustry, FaWifi, FaStar,
   FaBolt, FaRobot, FaTools, FaDesktop, FaBox, FaPlug, FaLayerGroup,
@@ -100,23 +100,32 @@ const HomePage = () => {
     loadData();
   }, []);
 
-  // === AUTO-SLIDE LOGIC ===
+  // === PRELOAD + DECODE BANNER IMAGES ===
+  // Banners are large (often base64) images. Decoding one only at the moment it
+  // becomes visible is what made the change look janky, so do it up front.
   useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => {
+    banners.forEach((b) => {
+      if (!b.image) return;
+      const img = new Image();
+      img.src = b.image;
+      if (img.decode) img.decode().catch(() => {});
+    });
+  }, [banners]);
+
+  // === AUTO-SLIDE LOGIC ===
+  // Depends on currentSlide so a manual click restarts the 6s timer instead of
+  // auto-advancing a moment after the user just chose a slide. Pauses on hover.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (banners.length <= 1 || paused) return undefined;
+    const timer = setTimeout(() => {
       setCurrentSlide((prev) => (prev === banners.length - 1 ? 0 : prev + 1));
-    }, 5000);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [banners.length, currentSlide, paused]);
 
-    return () => clearInterval(interval);
-  }, [banners.length]);
-
-  const nextSlide = () => {
-    setCurrentSlide(currentSlide === banners.length - 1 ? 0 : currentSlide + 1);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide(currentSlide === 0 ? banners.length - 1 : currentSlide - 1);
-  };
+  const nextSlide = () => setCurrentSlide((c) => (c === banners.length - 1 ? 0 : c + 1));
+  const prevSlide = () => setCurrentSlide((c) => (c === 0 ? banners.length - 1 : c - 1));
 
   return (
     <div className="font-sans text-gray-800 overflow-x-hidden">
@@ -128,68 +137,48 @@ const HomePage = () => {
       />
 
       {/* 1. DYNAMIC HERO SLIDER */}
-      <section className="relative h-screen w-full bg-nyoranixBlack flex items-center justify-center overflow-hidden group">
+      <section onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} className="relative h-screen w-full bg-nyoranixBlack flex items-center justify-center overflow-hidden group">
 
-        <AnimatePresence mode="wait">
-          {banners.length > 0 && (
-            <motion.div
-              key={currentSlide}
-              initial={{ opacity: 0, scale: 1.05 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8, ease: 'easeInOut' }}
-              className="absolute inset-0"
+        {/* All slides stay mounted and stacked; only opacity changes, so the next
+            slide fades in while the previous fades out (no flash of black). */}
+        {banners.map((banner, idx) => {
+          const active = idx === currentSlide;
+          const Heading = active ? 'h1' : 'div';
+          return (
+            <div
+              key={idx}
+              aria-hidden={!active}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${active ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+              style={{ willChange: 'opacity' }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-nyoranixBlack via-nyoranixBlack/90 to-red-950/60 opacity-95 z-0"></div>
 
               <div
                 className="absolute inset-0 z-0 opacity-40 bg-cover bg-center"
-                style={{ backgroundImage: `url('${banners[currentSlide].image}')` }}
+                style={{ backgroundImage: `url('${banner.image}')` }}
               ></div>
 
               <div className="absolute inset-0 flex items-center justify-center z-20">
                 <div className="text-center px-4 max-w-4xl mx-auto">
-                  <motion.span
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.15 }}
-                    className="text-red-400 font-bold tracking-widest uppercase text-sm mb-4 block"
-                  >
+                  <span className="text-red-400 font-bold tracking-widest uppercase text-sm mb-4 block">
                     Welcome to Nyoranix
-                  </motion.span>
-                  <motion.h1
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.3 }}
-                    className="text-5xl md:text-7xl font-extrabold text-white mb-6 leading-tight"
-                  >
-                    {banners[currentSlide].title}
-                  </motion.h1>
-                  <motion.p
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.45 }}
-                    className="text-gray-300 text-lg md:text-xl mb-10 max-w-2xl mx-auto"
-                  >
-                    {banners[currentSlide].subtitle}
-                  </motion.p>
-                  <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.6 }}
-                    className="flex flex-col sm:flex-row gap-4 justify-center"
-                  >
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-                      <Link to="/shop" className="bg-nyoranixRed hover:bg-red-700 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg flex items-center justify-center gap-2">
-                        Shop Now <FaArrowRight />
-                      </Link>
-                    </motion.div>
-                  </motion.div>
+                  </span>
+                  <Heading className="text-5xl md:text-7xl font-extrabold text-white mb-6 leading-tight">
+                    {banner.title}
+                  </Heading>
+                  <p className="text-gray-300 text-lg md:text-xl mb-10 max-w-2xl mx-auto">
+                    {banner.subtitle}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Link to="/shop" tabIndex={active ? 0 : -1} className="bg-nyoranixRed hover:bg-red-700 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-transform hover:scale-105 active:scale-95">
+                      Shop Now <FaArrowRight />
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          );
+        })}
 
         {banners.length > 1 && (
           <>
@@ -205,6 +194,7 @@ const HomePage = () => {
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
+                  aria-label={`Show slide ${idx + 1}`}
                   className={`h-2 rounded-full transition-all duration-300 ${
                     idx === currentSlide ? 'bg-nyoranixRed w-8' : 'bg-white/50 w-2 hover:bg-white'
                   }`}
