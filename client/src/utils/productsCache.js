@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
 
@@ -35,11 +36,43 @@ export const fetchAllProducts = async ({ force = false } = {}) => {
 
 // Compact object stored in the cart (never spread a whole product into the cart -
 // that dragged images/reviews into localStorage).
+// Product photos are stored as base64. Saving one per cart line in localStorage
+// (about 5 MB limit) makes the cart fail to persist after a few items, so big
+// inline images are NOT stored - screens look the image up by product id with
+// useProductImages() instead.
+const MAX_INLINE_IMAGE = 4000;
+export const cartSafeImage = (img) => (img && !(img.startsWith('data:') && img.length > MAX_INLINE_IMAGE) ? img : '');
+
 export const toCartItem = (product, quantity = 1) => ({
   id: product._id,
   name: product.name,
   price: product.price,
-  image: product.images?.[0] || product.image,
+  image: cartSafeImage(product.images?.[0] || product.image),
   quantity,
   countInStock: product.countInStock,
 });
+
+// { productId: imageSrc } built from the shared cached catalogue
+export const useProductImages = (enabled = true) => {
+  const [map, setMap] = useState(() => {
+    const m = {};
+    (peekProducts() || []).forEach((p) => { m[p._id] = p.images?.[0] || p.image; });
+    return m;
+  });
+  useEffect(() => {
+    // `enabled=false` means "don't download the catalogue just for this": e.g. the
+    // cart drawer exists on every page but only needs images when it has items.
+    if (!enabled) return undefined;
+    let alive = true;
+    fetchAllProducts()
+      .then((list) => {
+        if (!alive) return;
+        const m = {};
+        list.forEach((p) => { m[p._id] = p.images?.[0] || p.image; });
+        setMap(m);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [enabled]);
+  return map;
+};

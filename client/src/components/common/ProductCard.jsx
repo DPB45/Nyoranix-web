@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { addToCart } from '../../redux/slices/cartSlice';
 import { openCartDrawer } from '../../redux/slices/uiSlice';
 import { toCartItem } from '../../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../../constants';
 import StarRating from './StarRating';
 
 // Shared product card (used on the home page "New Arrivals" grid).
@@ -26,7 +27,7 @@ const ProductCard = ({ product }) => {
       <div className="h-48 bg-gray-50 relative group">
         <Link to={link} aria-label={`View ${product.name}`} className="absolute inset-0 flex items-center justify-center p-4">
           <img
-            src={product.images?.[0] || product.image || 'https://via.placeholder.com/300'}
+            src={product.images?.[0] || product.image || PLACEHOLDER_IMG}
             alt={product.name}
             loading="lazy"
             decoding="async"

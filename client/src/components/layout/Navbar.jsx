@@ -1,4 +1,3 @@
-import { API_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 // === 1. ADD useLocation IMPORT ===
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -7,6 +6,7 @@ import { FaSearch, FaShoppingCart, FaUser, FaBars, FaTimes, FaSignOutAlt } from 
 import { fetchAllProducts } from '../../utils/productsCache';
 import { openCartDrawer } from '../../redux/slices/uiSlice';
 import ThemeToggle from '../common/ThemeToggle';
+import { PLACEHOLDER_IMG } from '../../constants';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { logout } from '../../redux/slices/userSlice';
@@ -207,7 +207,7 @@ const Navbar = () => {
                           onClick={() => handleSuggestionClick(p._id)}
                           className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0"
                         >
-                          <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
+                          <img src={p.image || (p.images && p.images[0]) || PLACEHOLDER_IMG} alt={p.name} className="w-8 h-8 object-contain" />
                           <div className="overflow-hidden">
                             <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
                             <p className="text-xs text-gray-500 truncate">{p.category}</p>
@@ -305,7 +305,7 @@ const Navbar = () => {
                            onClick={() => handleSuggestionClick(p._id)}
                            className="flex items-center gap-3 p-3 hover:bg-white cursor-pointer border-b last:border-0 border-gray-100"
                          >
-                           <img src={p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/50'} alt={p.name} className="w-8 h-8 object-contain" />
+                           <img src={p.image || (p.images && p.images[0]) || PLACEHOLDER_IMG} alt={p.name} className="w-8 h-8 object-contain" />
                            <div className="overflow-hidden">
                              <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
                              <p className="text-xs text-gray-500 truncate">{p.category}</p>

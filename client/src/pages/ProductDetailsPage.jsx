@@ -1,5 +1,5 @@
 import { API_URL } from '../config/api';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
@@ -11,7 +11,7 @@ import { confirmToast } from '../utils/confirmToast';
 // === 1. ADD WHATSAPP ICON ===
 import {
   FaStar, FaCheckCircle, FaShoppingCart, FaBoxOpen, FaInfoCircle,
-  FaTruck, FaShieldAlt, FaShareAlt, FaThumbsUp, FaRegThumbsUp, FaUserCircle,
+  FaTruck, FaThumbsUp, FaRegThumbsUp, FaUserCircle,
   FaEdit, FaTrash, FaWhatsapp, FaBolt // <--- Import FaWhatsapp
 } from 'react-icons/fa';
 import Meta, { SITE_URL } from '../components/common/Meta';
@@ -40,10 +40,17 @@ const ProductDetailsPage = () => {
   // === FETCH DATA ===
   // `showSpinner` is only true when the product itself changes. Re-fetching after a
   // review/like used to blank the whole page and re-download the entire catalogue.
+  // Tracks which product the page is on now, so a slow response for a product
+  // the visitor already clicked away from can't overwrite the current one.
+  const currentId = useRef(id);
+  currentId.current = id;
+
   const fetchProductData = async (showSpinner = false) => {
+    const requestedId = id;
     try {
       if (showSpinner) setLoading(true);
-      const { data } = await axios.get(`${API_URL}/api/products/${id}`);
+      const { data } = await axios.get(`${API_URL}/api/products/${requestedId}`);
+      if (currentId.current !== requestedId) return; // stale response
       setProduct(data);
       setError(null);
       setLoading(false);
@@ -53,6 +60,7 @@ const ProductDetailsPage = () => {
         .then((all) => setRelatedProducts(all.filter((p) => p._id !== id && p.category === data.category).slice(0, 4)))
         .catch(() => setRelatedProducts([]));
     } catch (err) {
+      if (currentId.current !== requestedId) return; // stale response
       setError(err.response?.data?.message || 'Product not found');
       setLoading(false);
     }
@@ -64,6 +72,11 @@ const ProductDetailsPage = () => {
     setActiveTab('Description');
     setQuantity(1);
     setActiveImage(0);
+    // Don't carry a half-written review over to the next product
+    setRating(0);
+    setComment('');
+    setReviewError('');
+    setReviewSuccess('');
   }, [id]);
 
   // Pre-fill the review form if this user already has a review on this

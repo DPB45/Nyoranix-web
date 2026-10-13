@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/jpeg" href="/logo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- Apply the saved/OS dark-mode choice before first paint (no white flash). Keep the key in sync with ThemeProvider.jsx -->
+    <script>
+      try {
+        var t = localStorage.getItem('nyoranix-theme');
+        if (t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
     <title>Nyoranix | Electronic Components, Sensors & Robotics Kits</title>
 
     <!-- Static fallback meta tags. react-helmet-async (see Meta.jsx) injects

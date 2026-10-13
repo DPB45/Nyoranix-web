@@ -1,7 +1,6 @@
 import React from 'react';
 import {
-  FaUndo, FaBan, FaBoxOpen, FaMoneyBillWave, FaExchangeAlt,
-  FaWrench, FaExclamationCircle, FaEnvelope, FaMapMarkerAlt, FaShippingFast
+  FaUndo, FaBan, FaBoxOpen, FaMoneyBillWave, FaWrench, FaExclamationCircle, FaEnvelope, FaMapMarkerAlt, FaShippingFast
 } from 'react-icons/fa';
 import Meta from '../components/common/Meta';
 

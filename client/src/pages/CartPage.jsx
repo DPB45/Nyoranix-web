@@ -1,4 +1,6 @@
 import Meta from '../components/common/Meta';
+import { useProductImages } from '../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../constants';
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -15,6 +17,7 @@ const CartPage = () => {
   const { userInfo } = useSelector((state) => state.user);
   const { cartItems } = cart;
 
+  const productImages = useProductImages(cartItems.some((i) => !i.image)); // only fetch when a picture is missing
   const totalItems = cartItems.reduce((acc, item) => acc + Number(item.quantity), 0);
   const totalPrice = cartItems.reduce((acc, item) => acc + item.quantity * item.price, 0).toFixed(2);
 
@@ -59,7 +62,7 @@ const CartPage = () => {
               <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
                 {/* Image */}
                 <div className="w-24 h-24 bg-gray-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <img src={item.image} alt={item.name} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                  <img src={item.image || productImages[item.id] || PLACEHOLDER_IMG} alt={item.name} className="max-w-full max-h-full object-contain mix-blend-multiply" />
                 </div>
 
                 {/* Details */}
@@ -76,7 +79,7 @@ const CartPage = () => {
                       onChange={(e) => dispatch(updateQuantity({ id: item.id, quantity: Number(e.target.value) }))}
                       className="border border-gray-300 rounded-md p-1 text-sm focus:border-blue-500 outline-none"
                     >
-                      {[...Array(item.countInStock).keys()].map((x) => (
+                      {[...Array(Math.max(0, Math.floor(Number(item.countInStock) || 0))).keys()].map((x) => (
                         <option key={x + 1} value={x + 1}>
                           {x + 1}
                         </option>

@@ -7,10 +7,12 @@ const {
   deleteInquiry,
 } = require('../controllers/inquiryController');
 const { protect, admin } = require('../middleware/authMiddleware');
-const { createLimiter } = require('../utils/security');
+const { createLimiter, validateIdParam } = require('../utils/security');
 
 // Public contact form: cap per IP so it can't be used to flood the inbox/DB
 const inquiryLimiter = createLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many messages sent. Please try again later.' });
+
+router.param('id', validateIdParam);
 
 router.route('/')
   .post(inquiryLimiter, createInquiry)

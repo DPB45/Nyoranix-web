@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { FaCheck, FaTruck, FaCreditCard, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
 import { clearCartItems, syncCartItems } from '../redux/slices/cartSlice';
+import { useProductImages } from '../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../constants';
 import { FREE_SHIPPING_THRESHOLD, STANDARD_SHIPPING_FEE, EXPRESS_SHIPPING_FEE, GST_RATE } from '../constants';
 import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
@@ -69,12 +71,19 @@ const CheckoutPage = () => {
       .catch(() => {}); // Non-critical - checkout still works with COD if this fails
   }, []);
 
+  // If UPI was switched off in admin (or never loaded) the online option disappears; don't
+  // leave "online" selected, or "Continue" would be blocked by a UTR box that isn't on screen.
+  useEffect(() => {
+    if (paymentMethod === 'online' && !upiConfig.upiId) setPaymentMethod('cod');
+  }, [paymentMethod, upiConfig.upiId]);
+
   // === PRICING ===
   // Catalogue prices already INCLUDE 18% GST, so GST is shown as the portion
   // contained in the subtotal and is NOT added on top again. The server quote
   // (current DB prices + stock) is authoritative; the local calculation below is
   // only the instant first paint / fallback if the quote request fails.
   const [quote, setQuote] = useState(null);
+  const productImages = useProductImages(cartItems.some((i) => !i.image)); // only fetch when a picture is missing
 
   const localItems = cartItems.reduce((acc, item) => acc + Number(item.price) * Number(item.quantity || item.qty || 1), 0);
   const localShipping = shippingMethod === 'express'
@@ -104,6 +113,17 @@ const CheckoutPage = () => {
           { headers: { Authorization: `Bearer ${userInfo.token}` } }
         );
         if (cancelled) return;
+
+        // Every item was removed (deleted / out of stock): there is nothing left to
+        // order, so empty the cart and send the customer back instead of leaving a
+        // zero-rupee checkout open.
+        if (!data.items.length) {
+          dispatch(syncCartItems([]));
+          (data.adjustments || []).forEach((a) => toast.error(a.reason));
+          toast.error('Your cart items are no longer available.');
+          navigate('/cart');
+          return;
+        }
         setQuote(data);
 
         // Bring the cart in line with current prices/stock (guarded so it can't loop)
@@ -139,10 +159,25 @@ const CheckoutPage = () => {
       if (!formData.firstName.trim()) newErrors.firstName = "First Name is required";
       if (!formData.lastName.trim()) newErrors.lastName = "Last Name is required";
       if (!formData.email.trim()) newErrors.email = "Email is required";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) newErrors.email = "Enter a valid email address";
+      // Indian mobile: 10 digits starting 6-9, optionally typed with +91 / 91 / a leading 0
+      let phoneDigits = formData.phone.replace(/\D/g, '');
+      if (phoneDigits.length === 12 && phoneDigits.startsWith('91')) phoneDigits = phoneDigits.slice(2);
+      else if (phoneDigits.length === 11 && phoneDigits.startsWith('0')) phoneDigits = phoneDigits.slice(1);
       if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+      else if (!/^[6-9]\d{9}$/.test(phoneDigits)) newErrors.phone = "Enter a valid 10-digit mobile number (starting with 6, 7, 8 or 9)";
       if (!formData.address1.trim()) newErrors.address1 = "Address is required";
       if (!formData.city.trim()) newErrors.city = "City is required";
       if (!formData.zip.trim()) newErrors.zip = "Zip Code is required";
+      else if (!/^\d{6}$/.test(formData.zip.trim())) newErrors.zip = "Enter a valid 6-digit PIN code";
+    }
+
+    // The UTR box lives on the payment step, so it must be checked HERE. It used to be
+    // checked only when pressing "Place Order" on the review step, where the box (and
+    // its error text) is not on screen - the button looked dead.
+    if (currentStep === 3 && paymentMethod === 'online' && !upiRef.trim()) {
+      setUpiRefError('Please enter the UPI transaction ID / UTR number after paying');
+      return false;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -169,7 +204,10 @@ const CheckoutPage = () => {
 
     if (paymentMethod === 'online') {
       if (!upiRef.trim()) {
+        // safety net: send the customer back to the step that has the UTR box
         setUpiRefError('Please enter the UPI transaction ID / UTR number after paying');
+        setStep(3);
+        toast.error('Please enter your UPI transaction ID / UTR number');
         window.scrollTo(0, 0);
         return;
       }
@@ -195,7 +233,7 @@ const CheckoutPage = () => {
         })),
         shippingAddress: {
           fullName: `${formData.firstName} ${formData.lastName}`,
-          address: `${formData.address1}, ${formData.address2}`,
+          address: [formData.address1, formData.address2].map((x) => x.trim()).filter(Boolean).join(', '),
           city: formData.city,
           postalCode: formData.zip,
           country: formData.country,
@@ -291,7 +329,7 @@ const CheckoutPage = () => {
                               className={`w-full border rounded-lg p-3 text-sm ${upiRefError ? 'border-red-400' : 'border-gray-300'}`}
                             />
                             {upiRefError && <p className="text-red-500 text-xs mt-1">{upiRefError}</p>}
-                            <p className="text-xs text-gray-400 mt-2">After paying, your UPI app shows a transaction ID / UTR - enter it here so we can verify your payment. Your order will be marked "Processing" until we confirm it (usually within a few hours).</p>
+                            <p className="text-xs text-gray-400 mt-2">After paying, your UPI app shows a transaction ID / UTR - enter it here so we can verify your payment. Your order will show "Awaiting payment" until we confirm it (usually within a few hours).</p>
                           </div>
                         </div>
                       )}
@@ -321,7 +359,7 @@ const CheckoutPage = () => {
               <div className="space-y-3 mb-6 max-h-60 overflow-y-auto custom-scrollbar">
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex gap-4 items-start">
-                    <div className="w-12 h-12 bg-gray-50 rounded border flex items-center justify-center flex-shrink-0"><img src={item.image} alt={item.name} className="max-w-full max-h-full p-1" /></div>
+                    <div className="w-12 h-12 bg-gray-50 rounded border flex items-center justify-center flex-shrink-0"><img src={item.image || productImages[item.id] || PLACEHOLDER_IMG} alt={item.name} className="max-w-full max-h-full p-1" /></div>
                     <div className="flex-1"><p className="text-sm font-medium line-clamp-2">{item.name}</p><p className="text-xs text-gray-500">Qty: {item.quantity || item.qty}</p></div>
                     <p className="text-sm font-bold">₹{((item.price * (item.quantity || item.qty)) || 0).toFixed(2)}</p>
                   </div>

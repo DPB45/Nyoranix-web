@@ -87,7 +87,8 @@ const ContactPage = () => {
     } catch (error) {
       console.error(error);
       setStatus('error');
-      setStatusMsg('Failed to send message. Please try again later.');
+      const serverMsg = error.response?.data?.message;
+      setStatusMsg(error.response?.status === 429 && serverMsg ? serverMsg : 'Failed to send message. Please try again later.');
     }
   };
 

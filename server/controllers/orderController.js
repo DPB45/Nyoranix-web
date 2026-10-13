@@ -36,7 +36,7 @@ const parseCart = (orderItems, { strict }) => {
   const invalid = [];
   for (const item of orderItems.slice(0, 100)) {
     const id = String((item && (item.product || item.id || item._id)) || '');
-    const quantity = Math.floor(Number(item && (item.quantity || item.qty || 1)));
+    const quantity = Math.floor(Number(item && (item.quantity ?? item.qty ?? 1)));
     if (!mongoose.isValidObjectId(id)) {
       if (strict) throw new HttpError(400, 'One or more products in your cart are invalid');
       invalid.push(id);
@@ -149,7 +149,7 @@ const addOrderItems = async (req, res) => {
   try {
     const { orderItems, shippingMethod } = req.body;
     const paymentMethod = req.body.paymentMethod;
-    const paymentReference = str(req.body.paymentReference, 60);
+    const paymentReference = str(req.body.paymentReference, 60).toUpperCase();
     const sa = req.body.shippingAddress || {};
 
     if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
@@ -170,6 +170,14 @@ const addOrderItems = async (req, res) => {
     if (!shippingAddress.fullName || !shippingAddress.address || !shippingAddress.city
         || !shippingAddress.postalCode || !shippingAddress.mobile) {
       throw new HttpError(400, 'Please complete the shipping address');
+    }
+
+    // The same UPI transaction ID must not pay for two different orders
+    if (paymentMethod === 'Online') {
+      const reused = await Order.exists({ paymentReference, isCancelled: { $ne: true } });
+      if (reused) {
+        throw new HttpError(400, 'This UPI transaction ID has already been used for another order');
+      }
     }
 
     // Rebuild every line item and total from the DATABASE - never trust price,
@@ -232,6 +240,10 @@ const addOrderItems = async (req, res) => {
           Product.updateOne({ _id: item.product }, { $inc: { countInStock: item.quantity } })
         )
       );
+      if (saveError && saveError.code === 11000) {
+        // Lost the race against another order using the same UPI transaction ID
+        throw new HttpError(400, 'This UPI transaction ID has already been used for another order');
+      }
       throw saveError;
     }
 
@@ -276,10 +288,11 @@ const getOrderById = async (req, res) => {
 // @access  Private
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 }).select('-orderItems.image');
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 
@@ -288,11 +301,50 @@ const getMyOrders = async (req, res) => {
 // @access  Private/Admin
 const getOrders = async (req, res) => {
   try {
-    const orders = await Order.find({}).sort({ createdAt: -1 }).populate('user', 'id name');
+    const orders = await Order.find({}).sort({ createdAt: -1 }).select('-orderItems.image').populate('user', 'id name email');
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
+};
+
+// Give a cancelled order's stock back, one line at a time. Each line is flagged
+// `restocked` BEFORE its stock is added (so a retry can never add it twice) and the
+// flag is rolled back if the stock update itself fails (so a retry will redo it).
+const restockOrderItems = async (order) => {
+  for (const item of order.orderItems) {
+    const flipped = await Order.updateOne(
+      { _id: order._id, orderItems: { $elemMatch: { _id: item._id, restocked: { $ne: true } } } },
+      { $set: { 'orderItems.$.restocked': true } }
+    );
+    if (!flipped.modifiedCount) continue; // already restocked
+    try {
+      await Product.updateOne({ _id: item.product }, { $inc: { countInStock: item.quantity } });
+    } catch (err) {
+      await Order.updateOne({ _id: order._id, 'orderItems._id': item._id }, { $set: { 'orderItems.$.restocked': false } });
+      throw err;
+    }
+  }
+};
+
+// Cancel an order and return its stock. The conditional filter makes this safe
+// to call twice, or from the admin button and the auto-cancel job at the same
+// moment: only the call that flips isCancelled false -> true proceeds.
+// requireUnpaid: used by the auto-cancel job so it can never cancel an order an
+// admin has just verified and marked as paid.
+const cancelAndRestock = async (orderId, reason, { requireUnpaid = false } = {}) => {
+  const filter = { _id: orderId, isCancelled: { $ne: true }, isDelivered: false };
+  if (requireUnpaid) filter.isPaid = false;
+
+  const order = await Order.findOneAndUpdate(
+    filter,
+    { $set: { isCancelled: true, cancelledAt: new Date(), cancelReason: reason } },
+    { new: true }
+  );
+  if (!order) return null;
+  await restockOrderItems(order);
+  return order;
 };
 
 // @desc    Update order to delivered
@@ -301,18 +353,36 @@ const getOrders = async (req, res) => {
 const updateOrderToDelivered = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (order) {
-      order.isDelivered = true;
-      order.deliveredAt = Date.now();
-
-      const updatedOrder = await order.save();
-      res.json(updatedOrder);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
+    if (order.isCancelled) return res.status(400).json({ message: 'This order was cancelled' });
+    if (order.isDelivered) return res.status(400).json({ message: 'This order is already delivered' });
+    // A UPI order must have its payment verified before it is sent out
+    if (order.paymentMethod === 'Online' && !order.isPaid) {
+      return res.status(400).json({ message: 'Verify the UPI payment (Mark Paid) before delivering this order' });
     }
+
+    const now = Date.now();
+    const set = { isDelivered: true, deliveredAt: now };
+    // Cash on Delivery: the cash is collected at the door, so the order is paid now
+    if (order.paymentMethod === 'Cash on Delivery' && !order.isPaid) {
+      set.isPaid = true;
+      set.paidAt = now;
+      set.paymentResult = { id: 'cod-collected', status: 'COMPLETED', update_time: new Date(now).toISOString(), email_address: req.user.email };
+    }
+
+    // Conditional write: if the order was cancelled (or delivered) in the meantime
+    // this matches nothing, so a cancelled order can never end up delivered.
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, isCancelled: { $ne: true }, isDelivered: false },
+      { $set: set },
+      { new: true }
+    );
+    if (!updated) return res.status(409).json({ message: 'The order changed (cancelled or delivered). Refresh and check its status.' });
+    res.json(updated);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 
@@ -324,25 +394,85 @@ const updateOrderToDelivered = async (req, res) => {
 const updateOrderToPaid = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (order) {
-      order.isPaid = true;
-      order.paidAt = Date.now();
-      order.paymentResult = {
-        id: order.paymentReference || 'manual-verification',
-        status: 'COMPLETED',
-        update_time: new Date().toISOString(),
-        email_address: req.user.email,
-      };
+    if (order.isCancelled) return res.status(400).json({ message: 'This order was cancelled' });
+    if (order.isPaid) return res.status(400).json({ message: 'This order is already marked as paid' });
 
-      const updatedOrder = await order.save();
-      res.json(updatedOrder);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
-    }
+    const now = Date.now();
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, isCancelled: { $ne: true }, isPaid: false },
+      {
+        $set: {
+          isPaid: true,
+          paidAt: now,
+          paymentResult: {
+            id: order.paymentReference || 'manual-verification',
+            status: 'COMPLETED',
+            update_time: new Date(now).toISOString(),
+            email_address: req.user.email,
+          },
+        },
+      },
+      { new: true }
+    );
+    if (!updated) return res.status(409).json({ message: 'The order changed (cancelled or already paid). Refresh and check its status.' });
+    res.json(updated);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
+};
+
+// @desc    Cancel an order and put its items back in stock
+// @route   PUT /api/orders/:id/cancel
+// @access  Private/Admin
+const cancelOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.isDelivered) return res.status(400).json({ message: 'A delivered order cannot be cancelled' });
+    if (order.isCancelled) return res.status(400).json({ message: 'This order is already cancelled' });
+
+    const reason = (typeof req.body.reason === 'string' && req.body.reason.trim().slice(0, 200)) || 'Cancelled by admin';
+    const cancelled = await cancelAndRestock(order._id, reason);
+    if (!cancelled) return res.status(409).json({ message: 'Order could not be cancelled (it just changed). Refresh and try again.' });
+    res.json(cancelled);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// Unpaid UPI orders reserve stock but may never be paid. Cancel them after a
+// while so the stock goes back on sale. AUTO_CANCEL_UNPAID_HOURS=0 disables it.
+// (Runs inside the server process: on a sleeping free instance it simply runs
+// the next time the server wakes up.)
+const startAutoCancelJob = () => {
+  const hours = Number(process.env.AUTO_CANCEL_UNPAID_HOURS ?? 48);
+  if (!(hours > 0)) return;
+
+  const run = async () => {
+    try {
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+      const stale = await Order.find({
+        paymentMethod: 'Online', isPaid: false, isCancelled: { $ne: true }, isDelivered: false, createdAt: { $lt: cutoff },
+      }).select('_id');
+      for (const o of stale) {
+        await cancelAndRestock(o._id, `Auto-cancelled: payment not received within ${hours} hours`, { requireUnpaid: true });
+      }
+
+      // Retry cancellations whose stock return failed part-way (a DB error mid-restock)
+      const unfinished = await Order.find({ isCancelled: true, orderItems: { $elemMatch: { restocked: false } } });
+      for (const o of unfinished) await restockOrderItems(o);
+      if (stale.length) console.log(`Auto-cancelled ${stale.length} unpaid order(s)`);
+    } catch (err) {
+      console.error('Auto-cancel job failed:', err.message);
+    }
+  };
+  setTimeout(run, 30 * 1000);
+  const timer = setInterval(run, 60 * 60 * 1000);
+  if (timer.unref) timer.unref();
 };
 
 module.exports = {
@@ -353,4 +483,7 @@ module.exports = {
   getOrders,
   updateOrderToDelivered, // <--- Added for Admin Panel
   updateOrderToPaid,
+  cancelOrder,
+  startAutoCancelJob,
+  restockOrderItems,
 };

@@ -10,6 +10,19 @@ import toast from 'react-hot-toast';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
+// Your real GSTIN comes from VITE_GSTIN (client/.env or the Vercel environment settings).
+// Nothing is printed until it is set - the old hard-coded value was a placeholder.
+const GSTIN = (import.meta.env.VITE_GSTIN || '').trim();
+
+// What the customer needs to know: is the order paid, and where is it?
+const invoiceStatus = (order) => {
+  if (order.isCancelled) return { text: 'Cancelled', cls: 'text-red-600' };
+  if (order.isDelivered) return { text: 'Delivered', cls: 'text-green-600' };
+  if (order.isPaid) return { text: 'Paid', cls: 'text-green-600' };
+  if (order.paymentMethod === 'Online') return { text: 'Payment pending', cls: 'text-orange-500' };
+  return { text: 'Pay on delivery', cls: 'text-orange-500' };
+};
+
 const InvoicePage = () => {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -129,7 +142,7 @@ const InvoicePage = () => {
             <p className="font-bold text-gray-800">Tathagat Tech Universe</p>
             <p>Ashirwad Building, Vadgaon Bk</p>
             <p>Pune, Maharashtra 411041</p>
-            <p>GSTIN: 27ABCDE1234F1Z5</p>
+            {GSTIN && <p>GSTIN: {GSTIN}</p>}
           </div>
         </div>
 
@@ -148,7 +161,8 @@ const InvoicePage = () => {
              <h3 className="text-gray-500 text-xs uppercase font-bold mb-2">Invoice Details</h3>
              <p className="text-gray-600 text-sm">Date: <span className="font-bold text-gray-800">{new Date(order.createdAt).toLocaleDateString()}</span></p>
              <p className="text-gray-600 text-sm">Order ID: <span className="font-bold text-gray-800">#{order._id.substring(0, 8)}</span></p>
-             <p className="text-gray-600 text-sm">Status: <span className={`font-bold ${order.isPaid ? 'text-green-600' : 'text-orange-500'}`}>{order.paymentMethod}</span></p>
+             <p className="text-gray-600 text-sm">Payment: <span className="font-bold text-gray-800">{order.paymentMethod}</span></p>
+             <p className="text-gray-600 text-sm">Status: <span className={`font-bold ${invoiceStatus(order).cls}`}>{invoiceStatus(order).text}</span></p>
           </div>
         </div>
 

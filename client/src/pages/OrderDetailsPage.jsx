@@ -1,14 +1,16 @@
 import { API_URL } from '../config/api';
 import Meta from '../components/common/Meta';
+import { useProductImages } from '../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../constants';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { FaCheckCircle, FaTruck, FaBox, FaFilePdf, FaFileInvoice, FaArrowLeft } from 'react-icons/fa';
-import toast from 'react-hot-toast';
 
 const OrderDetailsPage = () => {
   const { id } = useParams();
+  const productImages = useProductImages();
   const { userInfo } = useSelector((state) => state.user);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,9 +50,17 @@ const OrderDetailsPage = () => {
         <div className="bg-blue-600 p-6 text-white flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <FaCheckCircle className="text-green-300" /> Order Placed Successfully!
+              {order.isCancelled
+                ? <>Order Cancelled</>
+                : <><FaCheckCircle className="text-green-300" /> {order.isDelivered ? 'Order Delivered' : 'Order Placed Successfully!'}</>}
             </h1>
             <p className="text-blue-100 mt-1">Order ID: {order._id}</p>
+            {order.isCancelled && (
+              <p className="text-red-100 mt-1 text-sm">
+                {order.cancelReason || 'This order was cancelled.'} Any stock held for you has been released.
+                {order.isPaid && ' If you already paid, contact support for your refund.'}
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -88,8 +98,8 @@ const OrderDetailsPage = () => {
               </p>
               <p className="text-gray-600 mt-2">Phone: {order.shippingAddress.mobile}</p>
               <div className="mt-3">
-                 <span className={`text-xs font-bold px-2 py-1 rounded ${order.isDelivered ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {order.isDelivered ? "Delivered" : "Processing"}
+                 <span className={`text-xs font-bold px-2 py-1 rounded ${order.isCancelled ? 'bg-red-100 text-red-700' : order.isDelivered ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {order.isCancelled ? "Cancelled" : order.isDelivered ? "Delivered" : (order.paymentMethod === 'Online' && !order.isPaid ? "Awaiting payment" : "Processing")}
                  </span>
               </div>
             </div>
@@ -103,7 +113,7 @@ const OrderDetailsPage = () => {
             <div className="bg-gray-50 p-4 rounded-lg border max-h-64 overflow-y-auto">
               {order.orderItems.map((item, index) => (
                 <div key={index} className="flex items-center gap-4 mb-4 last:mb-0 border-b pb-4 last:border-0 last:pb-0">
-                  <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded border" />
+                  <img src={item.image || productImages[item.product] || PLACEHOLDER_IMG} alt={item.name} className="w-12 h-12 object-cover rounded border" />
                   <div className="flex-1">
                     <Link to={`/product/${item.product}`} className="font-bold text-gray-800 hover:text-blue-600 line-clamp-1 text-sm">
                       {item.name}

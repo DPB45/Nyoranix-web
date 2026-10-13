@@ -1,13 +1,15 @@
+// Load environment variables BEFORE anything else is required: modules such as
+// utils/sendEmail.js read process.env when they are first loaded, so loading
+// .env later left the Brevo email credentials undefined in local development.
+require('dotenv').config();
+
 const express = require('express');
-const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const configRoutes = require('./routes/configRoutes');
 const inquiryRoutes = require('./routes/inquiryRoutes');
 const { sanitizeInput } = require('./utils/security');
-
-// Load environment variables
-dotenv.config();
+const { protect, admin } = require('./middleware/authMiddleware');
 
 // Fail fast with a clear message instead of crashing later on the first login
 ['MONGO_URI', 'JWT_SECRET'].forEach((name) => {
@@ -26,6 +28,16 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
+// Basic security headers (a lightweight stand-in for helmet)
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // the API is called from the Vercel site
+  next();
+});
+
 // Middleware
 // 1. CORS: Allow requests from your frontend(s).
 // CLIENT_URL can be a single origin or a comma-separated list, e.g.
@@ -42,21 +54,25 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS blocked for origin: ${origin}`));
+      const corsError = new Error(`CORS blocked for origin: ${origin}`);
+      corsError.status = 403;
+      callback(corsError);
     }
   },
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['X-Total-Count'], // product list pagination
 }));
 
 // 2. JSON Parser
-// Only the admin endpoints that carry base64 product/banner images need a big
-// body. Everything else (login, contact form, orders...) is capped at 1 MB so
-// the public API can't be hit with 50 MB payloads. A body is only parsed once,
-// so the first matching parser wins.
+// Product/banner saves carry base64 images and need a big body - but ONLY an
+// authenticated admin may send one: protect + admin run BEFORE the 50 MB parser,
+// so an anonymous request is rejected without its body ever being read.
+// Everything else (login, reviews, orders, contact form...) is capped at 1 MB.
 const bigJson = express.json({ limit: '50mb' });
-app.use('/api/products', (req, res, next) => (req.method === 'GET' ? next() : bigJson(req, res, next)));
-app.use('/api/config', (req, res, next) => (req.method === 'GET' ? next() : bigJson(req, res, next)));
-app.use(express.json({ limit: '1mb' }));
+app.post('/api/products', protect, admin, bigJson);
+app.put('/api/products/:id', protect, admin, bigJson);
+app.put('/api/config', protect, admin, bigJson);
+app.use(express.json({ limit: '1mb' })); // skipped automatically when a body was already parsed above
 app.use(express.urlencoded({ limit: '100kb', extended: true }));
 
 // Strip Mongo operator keys ($gt, $ne ...) from req.body/query/params
@@ -76,20 +92,37 @@ app.get('/', (req, res) => {
 });
 
 // Error Handling
+// Never echo raw error messages / stacks to clients: unexpected errors are logged
+// server-side and the client only sees a generic message.
+const CLIENT_ERROR_MESSAGES = {
+  400: 'Bad request',
+  403: 'Not allowed',
+  413: 'Request is too large',
+  415: 'Unsupported content type',
+  431: 'Request headers are too large',
+};
 app.use((err, req, res, next) => {
-  if (err.type === 'entity.too.large') {
-    return res.status(413).json({ message: 'Request is too large' });
+  if (res.headersSent) return next(err);
+
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ message: 'Malformed request body' });
   }
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  res.status(statusCode);
-  res.json({
-    message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
-  });
+
+  // body-parser, CORS and similar middleware attach a 4xx status to client errors
+  const status = Number(err.status || err.statusCode);
+  if (status >= 400 && status < 500) {
+    return res.status(status).json({ message: CLIENT_ERROR_MESSAGES[status] || 'Bad request' });
+  }
+
+  console.error(err);
+  res.status(500).json({ message: 'Server Error' });
 });
 
 const PORT = process.env.PORT || 5001;
 
+const { startAutoCancelJob } = require('./controllers/orderController');
+
 app.listen(PORT, () => {
+  startAutoCancelJob();
     console.log(`Server running on port ${PORT}`);
 });

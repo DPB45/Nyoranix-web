@@ -1,5 +1,7 @@
 import { API_URL } from '../config/api';
 import Meta from '../components/common/Meta';
+import { useProductImages } from '../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../constants';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux'; // 1. Import Redux
@@ -12,6 +14,7 @@ const OrdersPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const productImages = useProductImages();
 
   // Orders are private - send visitors who aren't logged in to the login page
   useEffect(() => {
@@ -34,7 +37,9 @@ const OrdersPage = () => {
           total: order.totalPrice,
           // An online (UPI) order stays "Awaiting payment" until the admin has
           // verified the UTR - it is not "Processing" yet.
-          status: order.isDelivered
+          status: order.isCancelled
+            ? 'Cancelled'
+            : order.isDelivered
             ? 'Delivered'
             : (order.paymentMethod === 'Online' && !order.isPaid ? 'Awaiting payment' : 'Processing'),
           items: order.orderItems
@@ -63,8 +68,8 @@ const OrdersPage = () => {
     switch (status) {
       case 'Delivered': return 'bg-green-100 text-green-700 border-green-200';
       case 'Processing': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Awaiting payment': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case 'Cancelled': return 'bg-red-100 text-red-700 border-red-200';
+      case 'Awaiting payment': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -124,7 +129,7 @@ const OrdersPage = () => {
                     <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                       {/* Check for item.image or item.images array */}
                       <img
-                        src={item.image || (item.images && item.images[0]) || 'https://via.placeholder.com/150'}
+                        src={item.image || productImages[item.product] || PLACEHOLDER_IMG}
                         alt={item.name}
                         className="max-w-full max-h-full p-2"
                       />

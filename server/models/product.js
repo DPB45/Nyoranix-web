@@ -71,6 +71,10 @@ const productSchema = mongoose.Schema(
   }
 );
 
+// Paginated lists sort by (createdAt desc, _id); without this index MongoDB sorts every
+// (large, base64-image) document in memory
+productSchema.index({ createdAt: -1, _id: 1 });
+
 const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product;

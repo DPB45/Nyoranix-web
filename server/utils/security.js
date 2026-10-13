@@ -40,8 +40,11 @@ const clean = (obj) => {
 const sanitizeInput = (req, res, next) => {
   if (req.body) req.body = clean(req.body);
   if (req.query) {
+    // Replace every key (not just drop top-level ones) so nested operators such as
+    // ?a[$gt]=1 are stripped too. Mutating in place keeps this compatible with Express 4.
     const q = clean(req.query);
-    Object.keys(req.query).forEach((k) => { if (!(k in q)) delete req.query[k]; });
+    Object.keys(req.query).forEach((k) => { delete req.query[k]; });
+    Object.assign(req.query, q);
   }
   if (req.params) req.params = clean(req.params);
   next();
@@ -81,6 +84,16 @@ const createLimiter = ({ windowMs, max, message, keyFn }) => {
 // Key by IP + target email so one attacker can't lock out everyone (and vice versa)
 const ipEmailKey = (req) => `${req.ip}|${normalizeEmail(req.body && req.body.email)}`;
 
+// router.param('id', validateIdParam): a malformed ObjectId in the URL is a
+// client mistake -> clean 404 instead of a Mongoose CastError surfacing as 500.
+const validateIdParam = (req, res, next, id) => {
+  if (!/^[a-f\d]{24}$/i.test(String(id))) {
+    return res.status(404).json({ message: 'Not found' });
+  }
+  next();
+};
+
 module.exports = {
+  validateIdParam,
   generateOtp, toStr, normalizeEmail, isEmail, escapeHtml, sanitizeInput, createLimiter, ipEmailKey,
 };

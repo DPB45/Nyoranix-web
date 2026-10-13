@@ -15,13 +15,15 @@ const {
     deleteUser
 } = require('../controllers/userController');
 const { protect, admin } = require('../middleware/authMiddleware');
-const { createLimiter, ipEmailKey } = require('../utils/security');
+const { createLimiter, ipEmailKey, validateIdParam } = require('../utils/security');
 
 // Brute-force / abuse protection (per IP + email). In-memory: fine for one instance.
 const loginLimiter = createLimiter({ windowMs: 15 * 60 * 1000, max: 10, keyFn: ipEmailKey, message: 'Too many login attempts. Please try again in 15 minutes.' });
 const otpLimiter = createLimiter({ windowMs: 15 * 60 * 1000, max: 10, keyFn: ipEmailKey, message: 'Too many attempts. Please wait a few minutes and try again.' });
 const mailLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 4, keyFn: ipEmailKey, message: 'Too many code requests. Please wait 10 minutes before trying again.' });
 const registerLimiter = createLimiter({ windowMs: 60 * 60 * 1000, max: 20, message: 'Too many sign-up attempts from this network. Please try again later.' });
+
+router.param('id', validateIdParam);
 
 router.route('/')
     .post(registerLimiter, mailLimiter, registerUser)

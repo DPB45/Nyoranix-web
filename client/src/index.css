@@ -42,6 +42,8 @@ html.dark { color-scheme: dark; }
 .dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: #2c2c34; }
 .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #2c2c34; }
 .dark .bg-blue-50, .dark .bg-red-50, .dark .bg-green-50, .dark .bg-orange-50, .dark .bg-yellow-50 { background-color: #1d1d23; }
+.dark .bg-indigo-50, .dark .bg-teal-50, .dark .bg-orange-100 { background-color: #1d1d23; }
+.dark .text-nyoranixBlack { color: #f3f4f6; }
 .dark .bg-green-100 { background-color: #12331f; }
 .dark .bg-red-100 { background-color: #3b1515; }
 .dark .bg-yellow-100 { background-color: #3a2f0e; }

@@ -9,12 +9,15 @@ const orderSchema = new mongoose.Schema({
             image: { type: String, required: true },
             price: { type: Number, required: true },
             product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+            // set once this line's stock has been returned after a cancellation
+            restocked: { type: Boolean, default: false },
         }
     ],
     shippingAddress: {
         fullName: { type: String, required: true },
         address: { type: String, required: true },
         city: { type: String, required: true },
+        country: { type: String, default: 'India' },
         postalCode: { type: String, required: true },
         mobile: { type: String, required: true }
     },
@@ -40,6 +43,26 @@ const orderSchema = new mongoose.Schema({
     paidAt: { type: Date },
     isDelivered: { type: Boolean, required: true, default: false },
     deliveredAt: { type: Date },
+    // Cancelled orders have their stock returned (see cancelAndRestock)
+    isCancelled: { type: Boolean, default: false },
+    cancelledAt: { type: Date },
+    cancelReason: { type: String },
 }, { timestamps: true });
 
-module.exports = mongoose.model('Order', orderSchema);
+// One UPI transaction ID can pay for only one live order. The controller checks
+// this first (friendly message); this index closes the race where two requests
+// with the same UTR pass that check at the same moment. Cancelled orders drop out
+// of the index (isCancelled becomes true) so their UTR can be reused. If your
+// database already contains duplicate UTRs the index cannot be built: the error
+// is logged below and the controller check still applies.
+orderSchema.index(
+  { paymentReference: 1 },
+  { unique: true, partialFilterExpression: { paymentReference: { $type: 'string' }, isCancelled: false } }
+);
+
+const Order = mongoose.model('Order', orderSchema);
+Order.on('index', (err) => {
+  if (err) console.error('Order paymentReference unique index not created:', err.message);
+});
+
+module.exports = Order;

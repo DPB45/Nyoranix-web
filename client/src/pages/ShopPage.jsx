@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { FaChevronDown, FaChevronUp, FaShoppingCart, FaEye, FaBolt } from 'react-icons/fa';
+import React, { useRef, useState, useEffect } from 'react';
+import { FaChevronDown, FaChevronUp, FaShoppingCart, FaBolt } from 'react-icons/fa';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { addToCart } from '../redux/slices/cartSlice';
 import { openCartDrawer } from '../redux/slices/uiSlice';
 import { fetchAllProducts, toCartItem } from '../utils/productsCache';
+import { PLACEHOLDER_IMG } from '../constants';
 import Meta from '../components/common/Meta';
 import StarRating from '../components/common/StarRating';
 
@@ -54,7 +55,12 @@ const ShopPage = () => {
   // shop page instead of that category. Effect (not a useState initializer)
   // because navigating from one category card to another doesn't remount
   // this page - only the query string changes.
+  // `userEdited` marks a param change made BY the checkboxes themselves. Without it,
+  // ticking a 2nd box deleted ?category= and this effect then reset the selection to [].
+  // Param changes from elsewhere (e.g. a navbar link) still re-sync as before.
+  const userEdited = useRef(false);
   useEffect(() => {
+    if (userEdited.current) { userEdited.current = false; return; }
     setSelectedCategories(categoryParam ? [categoryParam] : []);
   }, [categoryParam]);
 
@@ -141,6 +147,7 @@ const ShopPage = () => {
     // edits the filter - otherwise the effect above would immediately restore it
     // and the box could never be unticked.
     if (categoryParam) {
+      userEdited.current = true;
       const params = new URLSearchParams(searchParams);
       params.delete('category');
       setSearchParams(params, { replace: true });
@@ -272,7 +279,7 @@ const ShopPage = () => {
                     <div className="h-48 flex items-center justify-center mb-4 bg-gray-50 rounded-md overflow-hidden relative group">
                       <Link to={`/product/${product._id}`} className="w-full h-full flex items-center justify-center">
                         <img
-                          src={product.images?.[0] || product.image || "https://via.placeholder.com/300"}
+                          src={product.images?.[0] || product.image || PLACEHOLDER_IMG}
                           alt={product.name}
                           loading="lazy"
                           className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"

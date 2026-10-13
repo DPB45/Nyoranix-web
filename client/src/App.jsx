@@ -8,6 +8,7 @@ import Footer from './components/layout/Footer';
 import WhatsAppButton from './components/common/WhatsAppButton';
 import BackToTopButton from './components/common/BackToTopButton';
 import CartDrawer from './components/common/CartDrawer';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import ScrollToTop from './components/common/ScrollToTop'; // 2. Import ScrollToTop
 import AdminRoute from './components/admin/AdminRoute';
 import { SITE_URL } from './components/common/Meta';
@@ -96,6 +97,7 @@ function App() {
 
       <main id="main-content" className="flex-grow">
         {/* 5. Wrap Routes in Suspense */}
+        <ErrorBoundary resetKey={pathname}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -133,6 +135,7 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </main>
 
       {!isAdminRoute && <CartDrawer />}

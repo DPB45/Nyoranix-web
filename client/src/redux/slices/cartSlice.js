@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { logout } from './userSlice';
+import { cartSafeImage } from '../../utils/productsCache';
 
 // Cart persistence is handled entirely by redux-persist (see redux/store.js,
 // which whitelists the 'cart' slice) and PersistGate in main.jsx. Manual
@@ -58,6 +59,11 @@ const cartSlice = createSlice({
       state.paymentMethod = action.payload;
     },
 
+    // Carts saved by older versions still hold big base64 photos; drop them once.
+    compactCart: (state) => {
+      state.cartItems = state.cartItems.map((x) => (x.image && cartSafeImage(x.image) !== x.image ? { ...x, image: '' } : x));
+    },
+
     // Refresh cart lines with the server's current price/stock (checkout quote).
     // `items` = [{ id, price, countInStock, quantity }]; lines not listed are dropped.
     syncCartItems: (state, action) => {
@@ -66,7 +72,7 @@ const cartSlice = createSlice({
         .filter((x) => fresh.has(String(x.id)))
         .map((x) => {
           const f = fresh.get(String(x.id));
-          return { ...x, price: f.price, countInStock: f.countInStock, quantity: Math.min(x.quantity, f.quantity ?? x.quantity) };
+          return { ...x, image: cartSafeImage(x.image), price: f.price, countInStock: f.countInStock, quantity: Math.min(x.quantity, f.quantity ?? x.quantity) };
         });
     },
 
@@ -93,6 +99,7 @@ export const {
   saveShippingAddress,
   savePaymentMethod,
   syncCartItems,
+  compactCart,
   clearCartItems // <--- CRITICAL: Must be exported here
 } = cartSlice.actions;
 

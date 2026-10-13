@@ -1,3 +1,4 @@
+import { placeholderFor } from '../constants';
 import React from 'react';
 import { FaCalendar, FaClock, FaArrowRight, FaSearch } from 'react-icons/fa';
 import Meta from '../components/common/Meta';
@@ -8,7 +9,7 @@ const BlogPage = () => {
     id: 1,
     title: "Mastering IoT: From Sensor to Cloud",
     excerpt: "Dive deep into the world of IoT devices. Learn how to connect sensors, process data, and integrate with cloud platforms for robust applications.",
-    image: "https://via.placeholder.com/1200x500?text=IoT+Workshop",
+    image: placeholderFor('IoT Workshop', 1200, 500),
     date: "July 15, 2025",
     readTime: "7 min read",
     tags: ["IoT", "Electronics", "Tutorial"]
@@ -19,7 +20,7 @@ const BlogPage = () => {
       id: 2,
       title: "Beginner's Guide to Arduino Programming",
       excerpt: "An easy-to-follow guide for new Arduino enthusiasts. Learn the basics of writing code and building your first project.",
-      image: "https://via.placeholder.com/600x400?text=Arduino+Code",
+      image: placeholderFor('Arduino Code', 600, 400),
       date: "July 10, 2025",
       readTime: "5 min read",
       tags: ["Arduino", "Education", "Programming"]
@@ -28,7 +29,7 @@ const BlogPage = () => {
       id: 3,
       title: "The Future of Robotics in Manufacturing",
       excerpt: "Explore how advanced robotics is revolutionizing the manufacturing sector, boosting efficiency and precision across industries.",
-      image: "https://via.placeholder.com/600x400?text=Robotic+Arm",
+      image: placeholderFor('Robotic Arm', 600, 400),
       date: "June 28, 2025",
       readTime: "6 min read",
       tags: ["Robotics", "Industry", "Innovation"]
@@ -37,7 +38,7 @@ const BlogPage = () => {
       id: 4,
       title: "Choosing the Right Microcontroller for Your Project",
       excerpt: "Navigate the vast landscape of microcontrollers. This guide helps you pick the perfect brain for your next electronic endeavor.",
-      image: "https://via.placeholder.com/600x400?text=Microchips",
+      image: placeholderFor('Microchips', 600, 400),
       date: "June 15, 2025",
       readTime: "4 min read",
       tags: ["Electronics", "DIY", "Guide"]
@@ -46,7 +47,7 @@ const BlogPage = () => {
       id: 5,
       title: "Building a Smart Home System with ESP32",
       excerpt: "Transform your home into a smart haven using the versatile ESP32. This guide covers everything from basic setup to advanced automation.",
-      image: "https://via.placeholder.com/600x400?text=Smart+Home",
+      image: placeholderFor('Smart Home', 600, 400),
       date: "May 30, 2025",
       readTime: "8 min read",
       tags: ["Smart Home", "IoT", "DIY"]

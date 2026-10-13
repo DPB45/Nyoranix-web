@@ -3,9 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaMinus, FaPlus, FaTrash, FaShoppingBag, FaArrowRight } from 'react-icons/fa';
-import { removeFromCart, updateQuantity } from '../../redux/slices/cartSlice';
+import { removeFromCart, updateQuantity, compactCart } from '../../redux/slices/cartSlice';
 import { closeCartDrawer } from '../../redux/slices/uiSlice';
-import { FREE_SHIPPING_THRESHOLD } from '../../constants';
+import { FREE_SHIPPING_THRESHOLD, PLACEHOLDER_IMG } from '../../constants';
+import { useProductImages } from '../../utils/productsCache';
 
 const CartDrawer = () => {
   const dispatch = useDispatch();
@@ -13,6 +14,12 @@ const CartDrawer = () => {
   const { cartItems } = useSelector(state => state.cart);
   const userInfo = useSelector(state => state.user.userInfo);
   const isDrawerOpen = useSelector(state => state.ui.cartDrawerOpen);
+  // The drawer is mounted on every page, so only download the catalogue once it is
+  // open AND a line is actually missing its picture.
+  const productImages = useProductImages(isDrawerOpen && cartItems.some((i) => !i.image));
+
+  // One-off: drop big base64 photos that older versions saved inside the cart
+  useEffect(() => { dispatch(compactCart()); }, [dispatch]);
   const subtotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
   // Standard shipping is free ABOVE the threshold (matches the server rule)
   const unlocked = subtotal > FREE_SHIPPING_THRESHOLD;
@@ -68,7 +75,7 @@ const CartDrawer = () => {
               ) : cartItems.map(item => (
                 <div key={item.id} className="flex gap-3 p-3 rounded-xl border border-gray-100 dark:border-zinc-800">
                   <div className="w-20 h-20 rounded-lg bg-gray-50 dark:bg-zinc-900 flex items-center justify-center p-2 shrink-0">
-                    <img src={item.image || item.images?.[0]} alt={item.name} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                    <img src={item.image || productImages[item.id] || PLACEHOLDER_IMG} alt={item.name} className="max-w-full max-h-full object-contain mix-blend-multiply" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2">

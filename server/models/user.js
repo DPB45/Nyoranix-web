@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
 
     // === ADDED FIELDS FOR OTP VERIFICATION ===
     isVerified: { type: Boolean, default: false },
+    passwordChangedAt: { type: Date },
     otp: { type: String },
     otpExpires: { type: Date },
     otpAttempts: { type: Number, default: 0 },   // wrong guesses for the current verify code
@@ -47,6 +48,7 @@ userSchema.pre('save', async function (next) {
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    if (!this.isNew) this.passwordChangedAt = new Date(); // see protect(): older tokens stop working
     // Must explicitly call next() here too - Mongoose treats a pre-save
     // hook that declares a `next` parameter as callback-style and waits
     // for it to be invoked; without this the save() call would hang

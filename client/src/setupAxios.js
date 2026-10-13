@@ -14,7 +14,11 @@ export const setupAxios = (store) => {
     (error) => {
       const url = String(error?.config?.url || '');
       const isOurApi = url.startsWith(API_URL);
-      const isAuthForm = /\/api\/users\/(login|verify|resend-otp|reset-password|forgot-password)$|\/api\/users$/.test(url);
+      const method = String(error?.config?.method || '').toLowerCase();
+      // Login/OTP/reset forms, and registration (POST /api/users). A GET on
+      // /api/users is the admin user list and must still sign out on 401.
+      const isAuthForm = /\/api\/users\/(login|verify|resend-otp|reset-password|forgot-password)$/.test(url)
+        || (method === 'post' && /\/api\/users$/.test(url));
       const hadToken = Boolean(error?.config?.headers?.Authorization);
 
       if (error?.response?.status === 401 && isOurApi && !isAuthForm && hadToken && store.getState().user.userInfo && !handling) {

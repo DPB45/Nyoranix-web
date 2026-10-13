@@ -23,9 +23,22 @@ const updateConfig = async (req, res) => {
   try {
     const { banners, upiId, upiPayeeName } = req.body;
     const update = {};
-    if (banners !== undefined) update.banners = banners;
-    if (upiId !== undefined) update.upiId = upiId;
-    if (upiPayeeName !== undefined) update.upiPayeeName = upiPayeeName;
+    if (banners !== undefined) {
+      if (!Array.isArray(banners)) return res.status(400).json({ message: 'Banners must be a list' });
+      update.banners = banners;
+    }
+    if (upiId !== undefined) {
+      // Stored exactly as the customer's UPI app needs it: no spaces, name@bank shape (or empty to switch UPI off)
+      const id = typeof upiId === 'string' ? upiId.trim() : null;
+      if (id === null || (id !== '' && !/^[\w.\-]{2,}@[a-zA-Z][a-zA-Z0-9]{1,}$/.test(id))) {
+        return res.status(400).json({ message: 'UPI ID looks wrong. It should look like name@bank' });
+      }
+      update.upiId = id;
+    }
+    if (upiPayeeName !== undefined) {
+      if (typeof upiPayeeName !== 'string') return res.status(400).json({ message: 'Payee name must be text' });
+      update.upiPayeeName = upiPayeeName.trim().slice(0, 60);
+    }
 
     // Use findOneAndUpdate with $set to FORCE replace the banners array
     // upsert: true creates the document if it doesn't exist

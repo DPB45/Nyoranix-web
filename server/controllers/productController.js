@@ -1,5 +1,23 @@
 const Product = require('../models/product');
 
+// Money fields: undefined/null/'' = "not provided". Anything else must be a real
+// finite number >= 0 (so " ", "abc", true, {} are rejected, and 0 is valid).
+const num = (v) => {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === 'string') {
+    if (v === '') return undefined;
+    if (v.trim() === '') return NaN;
+    return Number(v);
+  }
+  return typeof v === 'number' ? v : NaN;
+};
+const badNum = (n) => n !== undefined && (!Number.isFinite(n) || n < 0);
+// Stable order for paginated requests so ?page= never repeats or skips products
+// (unpaginated requests keep the original natural order)
+const SORT = { createdAt: -1, _id: 1 };
+// Stock: whole number >= 0 (negative / fractional / non-numeric input is clamped)
+const stockInt = (v) => Math.max(0, Math.floor(Number(v)) || 0);
+
 // @desc    Create a product
 // @route   POST /api/products
 // @access  Private/Admin
@@ -25,13 +43,17 @@ const createProduct = async (req, res) => {
       isNewArrival
     } = req.body;
 
+    if (badNum(num(price)) || badNum(num(priceExclGST))) {
+      return res.status(400).json({ message: 'Price must be a number that is 0 or more' });
+    }
+
     const product = new Product({
       user: req.user._id,
       name: name || 'Sample Name',
 
       // === 2. PRICE DETAILS (Incl/Excl GST) ===
-      price: price || 0,
-      priceExclGST: priceExclGST || 0,
+      price: num(price) ?? 0,
+      priceExclGST: num(priceExclGST) ?? 0,
       gst: gst || 18,
 
       // === 3. IMAGES & BRAND ===
@@ -42,7 +64,7 @@ const createProduct = async (req, res) => {
       // === 4. CATEGORIES & STOCK ===
       category: category || 'General',
       subCategory: subCategory || '',
-      countInStock: countInStock || 0,
+      countInStock: stockInt(countInStock),
       isNewArrival: !!isNewArrival,
 
       // === 5. DESCRIPTIONS ===
@@ -75,14 +97,19 @@ const updateProduct = async (req, res) => {
       countInStock, features, specifications, otherSpecifications, isNewArrival
     } = req.body;
 
+    if (badNum(num(price)) || badNum(num(priceExclGST))) {
+      return res.status(400).json({ message: 'Price must be a number that is 0 or more' });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (product) {
       product.name = name || product.name;
 
       // === 2. UPDATE PRICE DETAILS ===
-      product.price = price || product.price;
-      product.priceExclGST = priceExclGST || product.priceExclGST;
+      // 0 is a valid price, so test for "provided" rather than truthiness
+      product.price = num(price) ?? product.price;
+      product.priceExclGST = num(priceExclGST) ?? product.priceExclGST;
       product.gst = gst || product.gst;
 
       // === 3. UPDATE DESCRIPTIONS ===
@@ -98,7 +125,7 @@ const updateProduct = async (req, res) => {
       // Use !== undefined here, not ||  - `0` is a legitimate "out of stock"
       // value but is falsy, so `0 || product.countInStock` would silently
       // keep the old stock number instead of actually zeroing it out.
-      product.countInStock = countInStock !== undefined ? Math.max(0, Math.floor(Number(countInStock)) || 0) : product.countInStock;
+      product.countInStock = countInStock !== undefined ? stockInt(countInStock) : product.countInStock;
       // Same reasoning for the New Arrival flag - `false` is falsy, so `||`
       // would make it impossible to ever un-tag a product.
       product.isNewArrival = isNewArrival !== undefined ? !!isNewArrival : product.isNewArrival;
@@ -130,7 +157,7 @@ const createProductReview = async (req, res) => {
     if (!numRating || numRating < 1 || numRating > 5) {
       return res.status(400).json({ message: 'Rating must be between 1 and 5' });
     }
-    if (!comment || !comment.trim()) {
+    if (typeof comment !== 'string' || !comment.trim()) {
       return res.status(400).json({ message: 'Please write a comment for your review' });
     }
 
@@ -215,7 +242,7 @@ const deleteProductReview = async (req, res) => {
 
       // Check permissions
       if (review.user.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-        return res.status(401).json({ message: 'Not authorized to delete this review' });
+        return res.status(403).json({ message: 'Not authorized to delete this review' });
       }
 
       product.reviews = product.reviews.filter(r => r._id.toString() !== req.params.reviewId.toString());
@@ -234,7 +261,8 @@ const deleteProductReview = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 
@@ -248,12 +276,30 @@ module.exports = {
       // images are base64, so sending every image, review and spec table for the
       // whole catalogue made this response huge. The admin panel asks for
       // ?full=true to get everything (it needs it for the edit form).
+      // Optional pagination: ?limit=24&page=2 (limit capped at 100). The total
+      // matching count is returned in the X-Total-Count header; the body stays a
+      // plain array so existing callers keep working. Without ?limit the whole
+      // list is returned, as before.
+      let skip = 0;
+      let limit = 0;
+      if (req.query.limit !== undefined) {
+        limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24));
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        skip = (page - 1) * limit;
+        res.set('X-Total-Count', String(await Product.countDocuments(filter)));
+      }
+
       if (req.query.full === 'true') {
-        return res.json(await Product.find(filter));
+        return res.json(await Product.find(filter).sort(limit ? SORT : {}).skip(skip).limit(limit));
       }
       const products = await Product.find(filter)
+        .sort(limit ? SORT : {})
         .select({ reviews: 0, description: 0, features: 0, specifications: 0, otherSpecifications: 0, images: { $slice: 1 } })
+        .skip(skip)
+        .limit(limit)
         .lean();
+      // `image` duplicates images[0] for most products - send it only when images is empty
+      products.forEach((p) => { if (p.images && p.images.length) delete p.image; });
       res.json(products);
     } catch (error) {
       console.error(error);

@@ -7,7 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { confirmToast } from '../utils/confirmToast';
 import { setCredentials } from '../redux/slices/userSlice';
-import { FaUser, FaBoxOpen, FaDownload, FaEye, FaCheckCircle, FaTruck, FaList, FaPen, FaTrash, FaPlus, FaLock, FaSave, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaUser, FaBoxOpen, FaDownload, FaEye, FaCheckCircle, FaTruck, FaList, FaTrash, FaPlus, FaLock, FaSave } from 'react-icons/fa';
 // REMOVED jsPDF imports as we are using the dedicated Invoice page
 // import jsPDF from 'jspdf';
 // import 'jspdf-autotable';
@@ -282,8 +282,14 @@ const UserProfilePage = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
-                              {order.isPaid ? <span className="text-green-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaCheckCircle /> Paid</span> : <span className="text-orange-500 flex items-center gap-1 text-[10px] uppercase font-bold">Pending</span>}
-                              {order.isDelivered ? <span className="text-green-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaCheckCircle /> Delivered</span> : <span className="text-blue-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaTruck /> Processing</span>}
+                              {order.isCancelled ? (
+                                <span className="text-red-600 flex items-center gap-1 text-[10px] uppercase font-bold">Cancelled</span>
+                              ) : (
+                                <>
+                                  {order.isPaid ? <span className="text-green-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaCheckCircle /> Paid</span> : <span className="text-orange-500 flex items-center gap-1 text-[10px] uppercase font-bold">{order.paymentMethod === 'Online' ? 'Awaiting payment' : 'Pay on delivery'}</span>}
+                                  {order.isDelivered ? <span className="text-green-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaCheckCircle /> Delivered</span> : <span className="text-blue-600 flex items-center gap-1 text-[10px] uppercase font-bold"><FaTruck /> Processing</span>}
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">

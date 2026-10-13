@@ -1,6 +1,6 @@
 import { API_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
@@ -137,7 +137,7 @@ const HomePage = () => {
       />
 
       {/* 1. DYNAMIC HERO SLIDER */}
-      <section onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} className="relative h-screen w-full bg-nyoranixBlack flex items-center justify-center overflow-hidden group">
+      <section onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)} onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)} style={{ height: '100svh' }} className="relative h-screen w-full bg-nyoranixBlack flex items-center justify-center overflow-hidden group">
 
         {/* All slides stay mounted and stacked; only opacity changes, so the next
             slide fades in while the previous fades out (no flash of black). */}

@@ -1,6 +1,8 @@
 import { API_URL } from '../../config/api';
 import { parseCSV } from '../../utils/csv';
-import { invalidateProducts } from '../../utils/productsCache';
+import { compressImage } from '../../utils/imageCompress';
+import { PLACEHOLDER_IMG } from '../../constants';
+import { invalidateProducts, useProductImages } from '../../utils/productsCache';
 import React, { useState, useEffect } from 'react';
 import Meta from '../../components/common/Meta';
 import { useSelector } from 'react-redux';
@@ -11,7 +13,7 @@ import {
   FaBox, FaUsers, FaShoppingCart, FaWallet,
   FaPlus, FaClipboardList, FaTrash, FaTimes,
   FaSearch, FaEdit, FaArrowUp, FaArrowDown, FaUpload, FaTimesCircle,
-  FaCog, FaImage, FaCheck, FaTruck, FaSave, FaExclamationTriangle, FaEye,
+  FaCog, FaCheck, FaTruck, FaSave, FaExclamationTriangle, FaEye,
   FaCloudUploadAlt, FaFileCsv, FaCheckCircle, // 1. Added Bulk Upload Icons
   FaEnvelopeOpenText, FaCircle, FaBars // 6. Added Messages Tab Icons + mobile menu
 } from 'react-icons/fa';
@@ -35,6 +37,7 @@ const CATEGORY_DATA = {
 
 const AdminDashboardPage = () => {
   const { userInfo } = useSelector((state) => state.user);
+  const productImages = useProductImages();
 
   // === STATE ===
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -83,7 +86,8 @@ const AdminDashboardPage = () => {
     if (userInfo && userInfo.isAdmin) {
       try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
-        const [prodRes, orderRes, userRes, settingsRes, messageRes] = await Promise.all([
+        // allSettled: one failing request (e.g. messages) must not blank the whole dashboard
+        const [prodR, orderR, userR, settingsR, messageR] = await Promise.allSettled([
           axios.get(`${API_URL}/api/products?full=true`),
           axios.get(`${API_URL}/api/orders`, config),
           axios.get(`${API_URL}/api/users`, config),
@@ -91,19 +95,25 @@ const AdminDashboardPage = () => {
           axios.get(`${API_URL}/api/inquiry`, config)
         ]);
 
-        invalidateProducts();
-        setProducts(Array.isArray(prodRes.data) ? prodRes.data : prodRes.data.products || []);
-        setOrders(orderRes.data);
-        setUsers(userRes.data);
-        setMessages(Array.isArray(messageRes.data) ? messageRes.data : []);
+        const failed = [];
+        if (prodR.status === 'fulfilled') {
+          invalidateProducts();
+          setProducts(Array.isArray(prodR.value.data) ? prodR.value.data : prodR.value.data.products || []);
+        } else failed.push('products');
+        if (orderR.status === 'fulfilled') setOrders(orderR.value.data); else failed.push('orders');
+        if (userR.status === 'fulfilled') setUsers(userR.value.data); else failed.push('users');
+        if (messageR.status === 'fulfilled') setMessages(Array.isArray(messageR.value.data) ? messageR.value.data : []); else failed.push('messages');
+        if (settingsR.status === 'fulfilled') {
+          const cfg = settingsR.value.data;
+          setBanners(cfg.banners && Array.isArray(cfg.banners) ? cfg.banners : []);
+          setUpiId(cfg.upiId || '');
+          setUpiPayeeName(cfg.upiPayeeName || '');
+        } else failed.push('settings');
 
-        if (settingsRes.data.banners && Array.isArray(settingsRes.data.banners)) {
-          setBanners(settingsRes.data.banners);
-        } else {
-          setBanners([]);
+        if (failed.length) {
+          console.error('Admin data load failed for:', failed.join(', '));
+          toast.error(`Could not load: ${failed.join(', ')}. Try refreshing.`);
         }
-        setUpiId(settingsRes.data.upiId || '');
-        setUpiPayeeName(settingsRes.data.upiPayeeName || '');
       } catch (error) { console.error("Data Load Error:", error); }
     }
   };
@@ -122,7 +132,19 @@ const AdminDashboardPage = () => {
   };
 
   const handleMarkDelivered = async (id) => {
-    try { await axios.put(`${API_URL}/api/orders/${id}/deliver`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { toast.error("Failed"); }
+    try { await axios.put(`${API_URL}/api/orders/${id}/deliver`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } }); fetchData(); } catch (e) { toast.error(e.response?.data?.message || "Failed"); }
+  };
+
+  const handleCancelOrder = async (id) => {
+    if (await confirmToast("Cancel this order? The items go back into stock. If the customer already paid you must refund them yourself.", "Cancel order")) {
+      try {
+        await axios.put(`${API_URL}/api/orders/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } });
+        invalidateProducts();
+        fetchData();
+        if (selectedOrder?._id === id) setShowOrderModal(false);
+        toast.success('Order cancelled and stock restored');
+      } catch (e) { toast.error(e.response?.data?.message || 'Failed to cancel order'); }
+    }
   };
 
   const handleMarkPaid = async (id) => {
@@ -131,16 +153,23 @@ const AdminDashboardPage = () => {
         await axios.put(`${API_URL}/api/orders/${id}/pay`, {}, { headers: { Authorization: `Bearer ${userInfo.token}` } });
         fetchData();
         if (selectedOrder?._id === id) setShowOrderModal(false);
-      } catch (e) { toast.error("Failed to mark order as paid"); }
+      } catch (e) { toast.error(e.response?.data?.message || "Failed to mark order as paid"); }
     }
   };
 
   const handleQuickStockUpdate = async (id, newStock) => {
+    // An empty or non-numeric box used to become Number('') === 0 and silently zero the stock
+    const trimmed = String(newStock ?? '').trim();
+    const stockNumber = Number(trimmed);
+    if (trimmed === '' || !Number.isFinite(stockNumber) || stockNumber < 0) {
+      toast.error('Enter a valid stock number (0 or more).');
+      return;
+    }
     try {
         const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
         const product = products.find(p => p._id === id);
         if(!product) return;
-        await axios.put(`${API_URL}/api/products/${id}`, { countInStock: Number(newStock) }, config);
+        await axios.put(`${API_URL}/api/products/${id}`, { countInStock: Math.floor(stockNumber) }, config);
         invalidateProducts();
         toast.success("Stock Updated Successfully!");
         fetchData();
@@ -302,13 +331,13 @@ const AdminDashboardPage = () => {
   };
 
   // ... (Banner, Settings, Product Handlers remain unchanged) ...
-  const handleBannerUpload = (e, index) => { const file = e.target.files[0]; if (file) { const r = new FileReader(); r.onloadend = () => { const newBanners = [...banners]; newBanners[index].image = r.result; setBanners(newBanners); }; r.readAsDataURL(file); } };
+  const handleBannerUpload = async (e, index) => { const file = e.target.files[0]; e.target.value = ''; if (!file) return; try { const image = await compressImage(file, { maxSize: 1920, quality: 0.8 }); setBanners((prev) => prev.map((b, i) => (i === index ? { ...b, image } : b))); } catch (err) { toast.error(err.message || 'Could not use that image'); } };
   const handleBannerChange = (index, field, value) => { const newBanners = [...banners]; newBanners[index][field] = value; setBanners(newBanners); };
   const addBannerSlide = () => { setBanners([...banners, { image: '', title: '', subtitle: '' }]); };
   const removeBannerSlide = async (index) => { if (await confirmToast("Are you sure you want to delete this slide permanently?", "Delete")) { const newBanners = banners.filter((_, i) => i !== index); setBanners(newBanners); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners: newBanners }, config); } catch (e) { toast.error("Error deleting slide from database. Refreshing..."); fetchData(); } } };
-  const handleUpdateSettings = async (e) => { e.preventDefault(); try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners, upiId, upiPayeeName }, config); toast.success("Settings Saved Successfully!"); fetchData(); } catch (e) { toast.error("Failed to save settings"); console.error(e); } };
+  const handleUpdateSettings = async (e) => { e.preventDefault(); if (upiId && !/^[\w.\-]{2,}@[a-zA-Z][a-zA-Z0-9]{1,}$/.test(upiId.trim())) { toast.error('UPI ID looks wrong. It should look like name@bank'); return; } try { const config = { headers: { Authorization: `Bearer ${userInfo.token}` } }; await axios.put(`${API_URL}/api/config`, { banners, upiId: upiId.trim(), upiPayeeName: upiPayeeName.trim() }, config); toast.success("Settings Saved Successfully!"); fetchData(); } catch (e) { toast.error("Failed to save settings"); console.error(e); } };
 
-  const handleFileUpload = (e) => { const files = Array.from(e.target.files); files.forEach(file => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onloadend = () => { setFormData(prev => ({ ...prev, images: [...prev.images, reader.result] })); }; }); };
+  const handleFileUpload = async (e) => { const files = Array.from(e.target.files); e.target.value = ''; const done = []; for (const file of files) { try { done.push(await compressImage(file, { maxSize: 1200, quality: 0.82 })); } catch (err) { toast.error(`${file.name}: ${err.message || 'could not be used'}`); } } if (done.length) setFormData(prev => ({ ...prev, images: [...prev.images, ...done] })); };
   const removeImage = (index) => setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
   const moveImage = (index, direction) => { const newImages = [...formData.images]; if (direction === 'up' && index > 0) [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]]; else if (direction === 'down' && index < newImages.length - 1) [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]]; setFormData({ ...formData, images: newImages }); };
 
@@ -337,13 +366,16 @@ const AdminDashboardPage = () => {
   const handleChange = (e) => { const { name, value, type, checked } = e.target; if (name === 'category') { const newSubs = CATEGORY_DATA[value] || []; setFormData(prev => ({ ...prev, category: value, subCategory: newSubs[0] || '' })); } else { setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); } };
 
   const filteredProducts = products.filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase()));
-  const totalRevenue = orders.reduce((acc, order) => acc + (order.totalPrice || 0), 0);
+  // Revenue = money actually received: paid orders, or Cash-on-Delivery orders that
+  // were delivered (older COD orders were never flagged paid). Cancelled never counts.
+  const countsAsRevenue = (o) => !o.isCancelled && (o.isPaid || (o.paymentMethod === 'Cash on Delivery' && o.isDelivered));
+  const totalRevenue = orders.filter(countsAsRevenue).reduce((acc, order) => acc + (order.totalPrice || 0), 0);
 
   // Build a real revenue-by-day series from actual orders instead of fake placeholder data
   const chartData = (() => {
     if (orders.length === 0) return [];
     const revenueByDate = {};
-    orders.forEach((order) => {
+    orders.filter(countsAsRevenue).forEach((order) => {
       const dateKey = new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
       revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + (order.totalPrice || 0);
     });
@@ -482,7 +514,7 @@ const AdminDashboardPage = () => {
               <h3 className="font-bold text-gray-800 flex items-center gap-2"><FaClipboardList className="text-blue-600" /> Inventory Management</h3>
               <div className="relative w-full sm:w-64"><FaSearch className="absolute left-3 top-3 text-gray-400" /><input type="text" placeholder="Search SKU or Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg text-sm w-full focus:outline-none focus:border-blue-500" /></div>
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-500 uppercase font-medium"><tr><th className="px-6 py-3">Product Name</th><th className="px-6 py-3">SKU / ID</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Current Stock</th><th className="px-6 py-3 text-right">Quick Update</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredProducts.map((p) => { const stock = p.countInStock || 0; const isLow = stock > 0 && stock < 10; const isOut = stock === 0; return (<tr key={p._id} className="hover:bg-gray-50 group"><td className="px-6 py-4 font-bold text-gray-800 flex items-center gap-3"><div className="w-10 h-10 rounded border bg-gray-50 flex items-center justify-center overflow-hidden"><img src={p.images?.[0] || p.image} className="w-full h-full object-cover" alt="" /></div><div><p>{p.name}</p><p className="text-xs text-gray-400 font-normal">{p.category}</p></div></td><td className="px-6 py-4 text-xs text-gray-500 font-mono">{p._id.substring(p._id.length - 8).toUpperCase()}</td><td className="px-6 py-4">{isOut ? (<span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaTimesCircle /> Out of Stock</span>) : isLow ? (<span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaExclamationTriangle /> Low Stock</span>) : (<span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaCheck /> In Stock</span>)}</td><td className="px-6 py-4"><input type="number" min="0" defaultValue={stock} id={`stock-input-${p._id}`} className={`border rounded w-24 p-2 text-center font-bold focus:ring-2 outline-none ${isOut ? 'border-red-300 bg-red-50' : 'border-gray-300'}`} /></td><td className="px-6 py-4 text-right"><button onClick={() => { const val = document.getElementById(`stock-input-${p._id}`).value; handleQuickStockUpdate(p._id, val); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm">Save</button></td></tr>); })}</tbody></table>{filteredProducts.length === 0 && <div className="p-10 text-center text-gray-400">No products found matching your search.</div>}</div>
+            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-500 uppercase font-medium"><tr><th className="px-6 py-3">Product Name</th><th className="px-6 py-3">SKU / ID</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Current Stock</th><th className="px-6 py-3 text-right">Quick Update</th></tr></thead><tbody className="divide-y divide-gray-100">{filteredProducts.map((p) => { const stock = p.countInStock || 0; const isLow = stock > 0 && stock < 10; const isOut = stock === 0; return (<tr key={p._id} className="hover:bg-gray-50 group"><td className="px-6 py-4 font-bold text-gray-800 flex items-center gap-3"><div className="w-10 h-10 rounded border bg-gray-50 flex items-center justify-center overflow-hidden"><img src={p.images?.[0] || p.image} className="w-full h-full object-cover" alt="" /></div><div><p>{p.name}</p><p className="text-xs text-gray-400 font-normal">{p.category}</p></div></td><td className="px-6 py-4 text-xs text-gray-500 font-mono">{p._id.substring(p._id.length - 8).toUpperCase()}</td><td className="px-6 py-4">{isOut ? (<span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaTimesCircle /> Out of Stock</span>) : isLow ? (<span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaExclamationTriangle /> Low Stock</span>) : (<span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><FaCheck /> In Stock</span>)}</td><td className="px-6 py-4"><input type="number" min="0" key={`${p._id}-${stock}`} defaultValue={stock} id={`stock-input-${p._id}`} className={`border rounded w-24 p-2 text-center font-bold focus:ring-2 outline-none ${isOut ? 'border-red-300 bg-red-50' : 'border-gray-300'}`} /></td><td className="px-6 py-4 text-right"><button onClick={() => { const val = document.getElementById(`stock-input-${p._id}`).value; handleQuickStockUpdate(p._id, val); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors shadow-sm">Save</button></td></tr>); })}</tbody></table>{filteredProducts.length === 0 && <div className="p-10 text-center text-gray-400">No products found matching your search.</div>}</div>
           </div>
         )}
 
@@ -496,7 +528,7 @@ const AdminDashboardPage = () => {
         {activeTab === 'Orders' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100"><h3 className="font-bold text-gray-800">Order Management</h3></div>
-            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-500 uppercase font-medium"><tr><th className="px-6 py-3">ID</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Date</th><th className="px-6 py-3">Total</th><th className="px-6 py-3">Paid</th><th className="px-6 py-3">Delivered</th><th className="px-6 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-gray-100">{orders.map((order) => (<tr key={order._id} className="hover:bg-gray-50"><td className="px-6 py-4 text-gray-500">{order._id.substring(0, 10)}...</td><td className="px-6 py-4 font-bold text-gray-800">{order.user && order.user.name}</td><td className="px-6 py-4 text-gray-500">{order.createdAt.substring(0, 10)}</td><td className="px-6 py-4 font-bold">₹{order.totalPrice}</td><td className="px-6 py-4">{order.isPaid ? (<span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Paid</span>) : (<span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Not Paid</span>)}</td><td className="px-6 py-4">{order.isDelivered ? (<span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Delivered</span>) : (<span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-bold">Processing</span>)}</td><td className="px-6 py-4 text-right flex items-center justify-end gap-2"><button onClick={() => { setSelectedOrder(order); setShowOrderModal(true); }} className="bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 transition-colors" title="View Details"><FaEye /></button>{!order.isPaid && (<button onClick={() => handleMarkPaid(order._id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition-colors flex items-center gap-1"><FaWallet /> Mark Paid</button>)}{!order.isDelivered && (<button onClick={() => handleMarkDelivered(order._id)} className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1"><FaTruck /> Mark Delivered</button>)}</td></tr>))}</tbody></table>{orders.length === 0 && <div className="p-8 text-center text-gray-500">No orders found.</div>}</div>
+            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-500 uppercase font-medium"><tr><th className="px-6 py-3">ID</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Date</th><th className="px-6 py-3">Total</th><th className="px-6 py-3">Paid</th><th className="px-6 py-3">Delivered</th><th className="px-6 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-gray-100">{orders.map((order) => (<tr key={order._id} className="hover:bg-gray-50"><td className="px-6 py-4 text-gray-500">{order._id.substring(0, 10)}...</td><td className="px-6 py-4 font-bold text-gray-800">{order.user && order.user.name}</td><td className="px-6 py-4 text-gray-500">{order.createdAt.substring(0, 10)}</td><td className="px-6 py-4 font-bold">₹{order.totalPrice}</td><td className="px-6 py-4">{order.isPaid ? (<span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Paid</span>) : (<span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Not Paid</span>)}</td><td className="px-6 py-4">{order.isCancelled ? (<span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Cancelled</span>) : order.isDelivered ? (<span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Delivered</span>) : (<span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-bold">Processing</span>)}</td><td className="px-6 py-4 text-right flex items-center justify-end gap-2"><button onClick={() => { setSelectedOrder(order); setShowOrderModal(true); }} className="bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 transition-colors" title="View Details"><FaEye /></button>{!order.isCancelled && !order.isPaid && (<button onClick={() => handleMarkPaid(order._id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition-colors flex items-center gap-1"><FaWallet /> Mark Paid</button>)}{!order.isCancelled && !order.isDelivered && (<button onClick={() => handleMarkDelivered(order._id)} className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1"><FaTruck /> Mark Delivered</button>)}{!order.isCancelled && !order.isDelivered && (<button onClick={() => handleCancelOrder(order._id)} className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded text-xs hover:bg-red-100 transition-colors flex items-center gap-1" title="Cancel order and restock"><FaTimesCircle /> Cancel</button>)}</td></tr>))}</tbody></table>{orders.length === 0 && <div className="p-8 text-center text-gray-500">No orders found.</div>}</div>
           </div>
         )}
 
@@ -636,10 +668,10 @@ const AdminDashboardPage = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
               <div className="bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-gray-700 mb-3 uppercase text-xs flex items-center gap-2"><FaTruck /> Shipping Information</h3>{selectedOrder.shippingAddress ? (<div className="space-y-1 text-sm text-gray-600"><p className="font-bold text-gray-900">{selectedOrder.shippingAddress.fullName || selectedOrder.user?.name || "Guest"}</p><p>{selectedOrder.shippingAddress.address}</p><p>{selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.postalCode}</p>{selectedOrder.shippingAddress.mobile && (<p className="pt-2 text-xs">Phone: <a href={`tel:${selectedOrder.shippingAddress.mobile}`} className="text-blue-600 font-bold">{selectedOrder.shippingAddress.mobile}</a></p>)}<p className="text-xs">Email: <a href={`mailto:${selectedOrder.user?.email}`} className="text-blue-600">{selectedOrder.user?.email}</a></p></div>) : <p className="text-sm text-gray-500 italic">No shipping info available</p>}</div>
-              <div className="bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-gray-700 mb-3 uppercase text-xs flex items-center gap-2"><FaClipboardList /> Order Status</h3><div className="space-y-3 text-sm"><div className="flex justify-between"><span>Payment:</span>{selectedOrder.isPaid ? <span className="text-green-600 font-bold flex items-center gap-1"><FaCheck /> Paid on {selectedOrder.paidAt?.substring(0, 10)}</span> : <span className="text-red-600 font-bold flex items-center gap-1"><FaTimesCircle /> Not Paid</span>}</div>{selectedOrder.paymentMethod === 'Online' && selectedOrder.paymentReference && (<div className="flex justify-between items-center bg-blue-50 border border-blue-100 rounded-lg px-3 py-2"><span className="text-xs text-blue-700">UPI Ref / UTR:</span><span className="font-mono font-bold text-blue-900 text-xs">{selectedOrder.paymentReference}</span></div>)}{!selectedOrder.isPaid && (<button onClick={() => handleMarkPaid(selectedOrder._id)} className="w-full bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><FaWallet /> Verify &amp; Mark as Paid</button>)}<div className="flex justify-between"><span>Delivery:</span>{selectedOrder.isDelivered ? <span className="text-green-600 font-bold flex items-center gap-1"><FaCheck /> Delivered</span> : <span className="text-yellow-600 font-bold flex items-center gap-1"><FaTruck /> Processing</span>}</div><div className="pt-2 border-t mt-2 flex justify-between text-lg font-bold text-gray-900"><span>Total Amount:</span><span>₹{selectedOrder.totalPrice}</span></div></div></div>
+              <div className="bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-gray-700 mb-3 uppercase text-xs flex items-center gap-2"><FaClipboardList /> Order Status</h3><div className="space-y-3 text-sm"><div className="flex justify-between"><span>Payment:</span>{selectedOrder.isPaid ? <span className="text-green-600 font-bold flex items-center gap-1"><FaCheck /> Paid on {selectedOrder.paidAt?.substring(0, 10)}</span> : <span className="text-red-600 font-bold flex items-center gap-1"><FaTimesCircle /> Not Paid</span>}</div>{selectedOrder.paymentMethod === 'Online' && selectedOrder.paymentReference && (<div className="flex justify-between items-center bg-blue-50 border border-blue-100 rounded-lg px-3 py-2"><span className="text-xs text-blue-700">UPI Ref / UTR:</span><span className="font-mono font-bold text-blue-900 text-xs">{selectedOrder.paymentReference}</span></div>)}{!selectedOrder.isCancelled && !selectedOrder.isPaid && (<button onClick={() => handleMarkPaid(selectedOrder._id)} className="w-full bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><FaWallet /> Verify &amp; Mark as Paid</button>)}<div className="flex justify-between"><span>Delivery:</span>{selectedOrder.isCancelled ? <span className="text-red-600 font-bold flex items-center gap-1"><FaTimesCircle /> Cancelled</span> : selectedOrder.isDelivered ? <span className="text-green-600 font-bold flex items-center gap-1"><FaCheck /> Delivered</span> : <span className="text-yellow-600 font-bold flex items-center gap-1"><FaTruck /> Processing</span>}</div><div className="pt-2 border-t mt-2 flex justify-between text-lg font-bold text-gray-900"><span>Total Amount:</span><span>₹{selectedOrder.totalPrice}</span></div></div></div>
             </div>
-            <div><h3 className="font-bold text-gray-700 mb-3 uppercase text-xs">Items to Pack ({selectedOrder.orderItems?.length || 0})</h3><div className="overflow-hidden border border-gray-200 rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-gray-50 text-gray-500 font-medium"><tr><th className="px-4 py-2">Image</th><th className="px-4 py-2">Product Name</th><th className="px-4 py-2 text-center">Qty</th><th className="px-4 py-2 text-right">Price</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedOrder.orderItems && selectedOrder.orderItems.map((item, index) => (<tr key={index}><td className="px-4 py-2"><img src={item.image} alt={item.name} className="w-10 h-10 object-contain border rounded bg-white" /></td><td className="px-4 py-2 font-medium text-gray-800">{item.name}</td><td className="px-4 py-2 text-center font-bold">{item.quantity}</td><td className="px-4 py-2 text-right">₹{(item.price * item.quantity).toFixed(2)}</td></tr>))}</tbody></table></div></div>
-            <div className="mt-8 flex justify-end"><button onClick={() => setShowOrderModal(false)} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-gray-900 transition">Close Details</button></div>
+            <div><h3 className="font-bold text-gray-700 mb-3 uppercase text-xs">Items to Pack ({selectedOrder.orderItems?.length || 0})</h3><div className="overflow-hidden border border-gray-200 rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-gray-50 text-gray-500 font-medium"><tr><th className="px-4 py-2">Image</th><th className="px-4 py-2">Product Name</th><th className="px-4 py-2 text-center">Qty</th><th className="px-4 py-2 text-right">Price</th></tr></thead><tbody className="divide-y divide-gray-100">{selectedOrder.orderItems && selectedOrder.orderItems.map((item, index) => (<tr key={index}><td className="px-4 py-2"><img src={item.image || productImages[item.product] || PLACEHOLDER_IMG} alt={item.name} className="w-10 h-10 object-contain border rounded bg-white" /></td><td className="px-4 py-2 font-medium text-gray-800">{item.name}</td><td className="px-4 py-2 text-center font-bold">{item.quantity}</td><td className="px-4 py-2 text-right">₹{(item.price * item.quantity).toFixed(2)}</td></tr>))}</tbody></table></div></div>
+            <div className="mt-8 flex justify-end gap-3">{!selectedOrder.isCancelled && !selectedOrder.isDelivered && (<button onClick={() => handleCancelOrder(selectedOrder._id)} className="bg-red-50 text-red-600 border border-red-200 px-6 py-2 rounded-lg font-bold text-sm hover:bg-red-100 transition">Cancel order</button>)}<button onClick={() => setShowOrderModal(false)} className="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-gray-900 transition">Close Details</button></div>
           </div>
         </div>
       )}

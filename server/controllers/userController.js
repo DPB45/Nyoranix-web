@@ -1,6 +1,5 @@
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const { sendOtpEmail, sendWelcomeEmail } = require('../utils/sendEmail');
 const { generateOtp, toStr, normalizeEmail, isEmail } = require('../utils/security');
 
@@ -155,13 +154,11 @@ const resendOtp = async (req, res) => {
         return res.status(500).json({ message: 'Server Error' });
     }
 
-    if (!user) {
-        res.status(404).json({ message: 'No pending registration found for this email.' });
-        return;
-    }
-    if (user.isVerified) {
-        res.status(400).json({ message: 'This email is already verified. Please log in.' });
-        return;
+    // Same reply whether or not there is a pending registration, so this endpoint
+    // cannot be used to discover which emails are registered.
+    const generic = { message: 'If a registration is waiting for this email, a new OTP has been sent.' };
+    if (!user || user.isVerified) {
+        return res.json(generic);
     }
 
     const otp = generateOtp();
@@ -172,7 +169,7 @@ const resendOtp = async (req, res) => {
     try {
         await user.save();
         await sendOtpEmail(email, otp, 'verify');
-        res.json({ message: 'A new OTP has been sent to your email.' });
+        res.json(generic);
     } catch (error) {
         console.error('Failed to resend OTP email:', error);
         res.status(500).json({ message: 'Email could not be sent. Please try again in a moment.' });
@@ -185,27 +182,27 @@ const resendOtp = async (req, res) => {
 const verifyEmail = async (req, res) => {
     const email = normalizeEmail(req.body.email);
     const otp = toStr(req.body.otp, 10);
+    const invalid = { message: 'Invalid or Expired OTP' };
 
     try {
-        const user = await findByEmail(email);
+        const found = await findByEmail(email).select('_id');
+        if (!found) return res.status(400).json(invalid);
 
-        if (!user || !user.otp || !user.otpExpires || user.otpExpires <= Date.now()) {
-            return res.status(400).json({ message: 'Invalid or Expired OTP' });
-        }
-
-        if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
-            return res.status(429).json({ message: 'Too many wrong attempts. Please request a new code.' });
-        }
+        // Spend one guess ATOMICALLY before comparing. Reading the counter, comparing
+        // and then saving it let parallel requests all read "0 attempts" and each
+        // get a free guess; the conditional $inc makes the budget a hard limit.
+        const user = await User.findOneAndUpdate(
+            { _id: found._id, otp: { $exists: true, $ne: null }, otpExpires: { $gt: new Date() }, otpAttempts: { $lt: MAX_OTP_ATTEMPTS } },
+            { $inc: { otpAttempts: 1 } },
+            { new: true }
+        );
+        if (!user) return res.status(400).json(invalid); // no live code, expired, or guesses used up
 
         if (user.otp !== otp) {
-            user.otpAttempts = (user.otpAttempts || 0) + 1;
-            // Burn the code once the guess budget is used up
             if (user.otpAttempts >= MAX_OTP_ATTEMPTS) {
-                user.otp = undefined;
-                user.otpExpires = undefined;
+                await User.updateOne({ _id: user._id }, { $unset: { otp: 1, otpExpires: 1 } }); // burn the code
             }
-            await user.save();
-            return res.status(400).json({ message: 'Invalid or Expired OTP' });
+            return res.status(400).json(invalid);
         }
 
         user.isVerified = true;
@@ -266,31 +263,31 @@ const resetPassword = async (req, res) => {
     const email = normalizeEmail(req.body.email);
     const otp = toStr(req.body.otp, 10);
     const password = toStr(req.body.password, 200);
+    const invalid = { message: 'Invalid or expired code. Please request a new one.' };
     try {
         if (password.length < MIN_PASSWORD) {
             return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
         }
 
-        const user = await findByEmail(email);
-        const invalid = { message: 'Invalid or expired code. Please request a new one.' };
+        const found = await findByEmail(email).select('_id');
+        if (!found) return res.status(400).json(invalid);
 
-        if (!user || !user.resetOtp || !user.resetOtpExpires || user.resetOtpExpires < Date.now()) {
-            return res.status(400).json(invalid);
-        }
-        if (user.resetOtpAttempts >= MAX_OTP_ATTEMPTS) {
-            return res.status(429).json({ message: 'Too many wrong attempts. Please request a new code.' });
-        }
+        // Atomic guess budget (see verifyEmail)
+        const user = await User.findOneAndUpdate(
+            { _id: found._id, resetOtp: { $exists: true, $ne: null }, resetOtpExpires: { $gt: new Date() }, resetOtpAttempts: { $lt: MAX_OTP_ATTEMPTS } },
+            { $inc: { resetOtpAttempts: 1 } },
+            { new: true }
+        );
+        if (!user) return res.status(400).json(invalid);
+
         if (user.resetOtp !== otp) {
-            user.resetOtpAttempts = (user.resetOtpAttempts || 0) + 1;
             if (user.resetOtpAttempts >= MAX_OTP_ATTEMPTS) {
-                user.resetOtp = undefined;
-                user.resetOtpExpires = undefined;
+                await User.updateOne({ _id: user._id }, { $unset: { resetOtp: 1, resetOtpExpires: 1 } });
             }
-            await user.save();
             return res.status(400).json(invalid);
         }
 
-        user.password = password; // re-hashed by the pre-save hook
+        user.password = password; // re-hashed by the pre-save hook (also revokes older tokens)
         user.resetOtp = undefined;
         user.resetOtpExpires = undefined;
         user.resetOtpAttempts = 0;

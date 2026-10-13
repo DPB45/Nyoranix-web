@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { validateIdParam } = require('../utils/security');
 const {
   getProducts,
   getProductById,
@@ -11,6 +12,8 @@ const {
   deleteProductReview // <--- 3. IMPORT THIS
 } = require('../controllers/productController');
 const { protect, admin } = require('../middleware/authMiddleware');
+
+router.param('id', validateIdParam);
 
 router.route('/')
   .get(getProducts) // Get All
