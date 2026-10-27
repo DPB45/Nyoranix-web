@@ -6,7 +6,9 @@ const orderSchema = new mongoose.Schema({
         {
             name: { type: String, required: true },
             quantity: { type: Number, required: true },
-            image: { type: String, required: true },
+            // Not stored for new orders: a base64 photo copied into every order line made
+            // one order megabytes big. Screens look the picture up by product id instead.
+            image: { type: String, default: '' },
             price: { type: Number, required: true },
             product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
             // set once this line's stock has been returned after a cancellation

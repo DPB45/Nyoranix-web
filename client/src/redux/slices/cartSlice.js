@@ -49,7 +49,11 @@ const cartSlice = createSlice({
       const { id, quantity } = action.payload;
       const item = state.cartItems.find((x) => x.id === id);
       if (item) {
-        item.quantity = quantity;
+        // whole number, at least 1, never above the known stock (99 when stock is unknown).
+        // The server re-checks everything at checkout, this just keeps the cart sane.
+        const max = Number.isFinite(Number(item.countInStock)) && item.countInStock > 0 ? Math.floor(item.countInStock) : 99;
+        const q = Math.floor(Number(quantity));
+        item.quantity = Number.isFinite(q) ? Math.min(max, Math.max(1, q)) : item.quantity;
       }
     },
     saveShippingAddress: (state, action) => {

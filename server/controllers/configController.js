@@ -24,8 +24,21 @@ const updateConfig = async (req, res) => {
     const { banners, upiId, upiPayeeName } = req.body;
     const update = {};
     if (banners !== undefined) {
-      if (!Array.isArray(banners)) return res.status(400).json({ message: 'Banners must be a list' });
-      update.banners = banners;
+      if (!Array.isArray(banners) || banners.length > 10) return res.status(400).json({ message: 'Banners must be a list of at most 10 slides' });
+      const cleanBanners = [];
+      for (const b of banners) {
+        const image = b && typeof b.image === 'string' ? b.image : '';
+        // only data-URI images (up to ~3 MB) or https URLs - nothing else
+        if (!(/^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(image) && image.length <= 3000000) && !/^https:\/\/\S{1,500}$/.test(image)) {
+          return res.status(400).json({ message: 'Each banner needs a valid image (uploaded photo or https link, max ~3 MB)' });
+        }
+        cleanBanners.push({
+          image,
+          title: typeof b.title === 'string' ? b.title.slice(0, 200) : '',
+          subtitle: typeof b.subtitle === 'string' ? b.subtitle.slice(0, 300) : '',
+        });
+      }
+      update.banners = cleanBanners;
     }
     if (upiId !== undefined) {
       // Stored exactly as the customer's UPI app needs it: no spaces, name@bank shape (or empty to switch UPI off)

@@ -19,6 +19,15 @@ const { protect, admin } = require('./middleware/authMiddleware');
   }
 });
 
+// A guessable JWT secret lets anyone forge admin tokens. In production refuse to run
+// with a short one (Render keeps the previous deploy live if this one fails to start).
+// Generate one:  node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+// NOTE: changing the secret signs every user out once.
+if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32) {
+  console.error('JWT_SECRET is too short (need at least 32 characters). Set a long random value and redeploy.');
+  process.exit(1);
+}
+
 // Connect to Database
 connectDB();
 
@@ -42,9 +51,10 @@ app.use((req, res, next) => {
 // 1. CORS: Allow requests from your frontend(s).
 // CLIENT_URL can be a single origin or a comma-separated list, e.g.
 //   CLIENT_URL=https://nyoranix.vercel.app,https://nyoranix-web.vercel.app
-// Local dev origin is always allowed alongside whatever's configured.
+// The local dev origin is allowed alongside these only when NODE_ENV is not 'production'.
 const allowedOrigins = [
-  'http://localhost:5173',
+  // the local dev origin is only allowed outside production
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173']),
   ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()) : [])
 ];
 

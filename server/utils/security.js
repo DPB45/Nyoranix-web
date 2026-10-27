@@ -13,8 +13,10 @@ const toStr = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) 
 
 const normalizeEmail = (v) => toStr(v, 254).toLowerCase();
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const isEmail = (v) => EMAIL_RE.test(v);
+// Strict on purpose: the old pattern accepted "a@b.com?bcc=evil%40x.com", and the admin
+// panel builds mailto: links from stored emails (replying would silently BCC the attacker).
+const EMAIL_RE = /^[A-Za-z0-9.!#$%&'*+=^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.[A-Za-z]{2,}$/;
+const isEmail = (v) => typeof v === 'string' && v.length <= 254 && EMAIL_RE.test(v);
 
 // Escape user text before putting it in an HTML email
 const escapeHtml = (v) =>
@@ -27,13 +29,17 @@ const escapeHtml = (v) =>
 
 // Defence in depth: strip Mongo operator keys ($gt, $ne ...) and dotted keys from
 // req.body / req.query / req.params before any controller sees them.
-const clean = (obj) => {
+// Depth-limited: JSON nested ~10,000 levels deep used to overflow the call stack
+// (a 500). Real requests are never more than a few levels deep.
+const MAX_DEPTH = 20;
+const clean = (obj, depth = 0) => {
   if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(clean);
+  if (depth >= MAX_DEPTH) return {};
+  if (Array.isArray(obj)) return obj.map((x) => clean(x, depth + 1));
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
     if (k.startsWith('$') || k.includes('.')) continue;
-    out[k] = clean(v);
+    out[k] = clean(v, depth + 1);
   }
   return out;
 };

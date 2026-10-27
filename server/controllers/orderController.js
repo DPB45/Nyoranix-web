@@ -34,7 +34,8 @@ const parseCart = (orderItems, { strict }) => {
   }
   const wanted = new Map();
   const invalid = [];
-  for (const item of orderItems.slice(0, 100)) {
+  if (orderItems.length > 100) throw new HttpError(400, 'Too many different items in one order (max 100)');
+  for (const item of orderItems) {
     const id = String((item && (item.product || item.id || item._id)) || '');
     const quantity = Math.floor(Number(item && (item.quantity ?? item.qty ?? 1)));
     if (!mongoose.isValidObjectId(id)) {
@@ -60,7 +61,7 @@ const parseCart = (orderItems, { strict }) => {
 const priceCart = async (orderItems, shippingMethod, { strict }) => {
   const { wanted, invalid } = parseCart(orderItems, { strict });
   const dbProducts = await Product.find({ _id: { $in: [...wanted.keys()] } })
-    .select('name price countInStock image images');
+    .select('name price countInStock'); // never load photos here (can be MBs each)
 
   const verifiedItems = [];
   const adjustments = [];
@@ -92,7 +93,7 @@ const priceCart = async (orderItems, shippingMethod, { strict }) => {
     verifiedItems.push({
       name: dbProduct.name,
       quantity,
-      image: dbProduct.images?.[0] || dbProduct.image,
+      image: '', // see models/order.js - the UI resolves the picture from the product id
       price: dbProduct.price, // authoritative DB price, never the client's
       product: dbProduct._id,
       countInStock: dbProduct.countInStock,
@@ -170,6 +171,24 @@ const addOrderItems = async (req, res) => {
     if (!shippingAddress.fullName || !shippingAddress.address || !shippingAddress.city
         || !shippingAddress.postalCode || !shippingAddress.mobile) {
       throw new HttpError(400, 'Please complete the shipping address');
+    }
+    // The browser checks these too, but the server must not rely on that
+    if (!/^\d{6}$/.test(shippingAddress.postalCode)) throw new HttpError(400, 'Enter a valid 6-digit PIN code');
+    let mobile = shippingAddress.mobile.replace(/\D/g, '');
+    if (mobile.length === 12 && mobile.startsWith('91')) mobile = mobile.slice(2);
+    else if (mobile.length === 11 && mobile.startsWith('0')) mobile = mobile.slice(1);
+    if (!/^[6-9]\d{9}$/.test(mobile)) throw new HttpError(400, 'Enter a valid 10-digit mobile number');
+    shippingAddress.mobile = mobile;
+    if (paymentMethod === 'Online' && !/^[A-Z0-9_-]{6,40}$/.test(paymentReference)) {
+      throw new HttpError(400, 'The UPI transaction ID / UTR looks wrong (6-40 letters or digits)');
+    }
+
+    // One account must not be able to tie up all your stock (or fill the database) with
+    // unpaid orders: cap how many can be open (not delivered, not cancelled) at once.
+    const openLimit = Number(process.env.MAX_OPEN_ORDERS) || 5;
+    const openOrders = await Order.countDocuments({ user: req.user._id, isCancelled: { $ne: true }, isDelivered: false });
+    if (openOrders >= openLimit) {
+      throw new HttpError(429, `You already have ${openOrders} open orders. Please wait for them to be delivered (or contact support) before placing another.`);
     }
 
     // The same UPI transaction ID must not pay for two different orders

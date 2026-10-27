@@ -16,7 +16,10 @@ const badNum = (n) => n !== undefined && (!Number.isFinite(n) || n < 0);
 // (unpaginated requests keep the original natural order)
 const SORT = { createdAt: -1, _id: 1 };
 // Stock: whole number >= 0 (negative / fractional / non-numeric input is clamped)
-const stockInt = (v) => Math.max(0, Math.floor(Number(v)) || 0);
+const stockInt = (v) => {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) ? Math.min(1000000, Math.max(0, n)) : 0; // "1e999" used to become Infinity
+};
 
 // @desc    Create a product
 // @route   POST /api/products
@@ -159,6 +162,10 @@ const createProductReview = async (req, res) => {
     }
     if (typeof comment !== 'string' || !comment.trim()) {
       return res.status(400).json({ message: 'Please write a comment for your review' });
+    }
+    // 17 reviews of 900 KB each used to push a product past MongoDB's 16 MB limit
+    if (comment.trim().length > 1000) {
+      return res.status(400).json({ message: 'Reviews can be up to 1000 characters' });
     }
 
     const product = await Product.findById(req.params.id);

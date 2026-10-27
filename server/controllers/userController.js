@@ -6,6 +6,10 @@ const { generateOtp, toStr, normalizeEmail, isEmail } = require('../utils/securi
 const MAX_OTP_ATTEMPTS = 5;
 const MIN_PASSWORD = 6;
 
+// A code was issued less than a minute ago (the code lives 10 min, so issued-at = expires - 10 min).
+// Used to stop "Resend" being spammed: each resend resets the guess budget and mails the owner.
+const issuedRecently = (expires) => !!expires && new Date(expires).getTime() - 10 * 60 * 1000 > Date.now() - 60 * 1000;
+
 // Case-insensitive lookup so accounts created before emails were lower-cased
 // ("Rahul@Gmail.com") can still log in with any casing.
 const findByEmail = (email) => User.findOne({ email }).collation({ locale: 'en', strength: 2 });
@@ -91,12 +95,18 @@ const registerUser = async (req, res) => {
     let user;
     try {
         if (existingUser && !existingUser.isVerified) {
-            // They started registering before but never verified (e.g. the
-            // first OTP email never arrived, or they're hitting "Resend").
-            // Update their details/password and re-send a fresh OTP instead
-            // of blocking them with "User already exists".
-            existingUser.name = name;
-            existingUser.password = password; // re-hashed by the pre-save hook
+            // They started registering before but never verified (e.g. the first OTP
+            // email never arrived). Only re-send a fresh OTP.
+            //
+            // SECURITY: do NOT change the password or name here. The code goes to the real
+            // owner of the email, so if re-registering overwrote the password, an attacker
+            // could register a victim's email first with the attacker's password; the victim
+            // then verifies with the newest code and the attacker's password works.
+            // (Someone who typed a different password the first time can use "Forgot password":
+            // proving they own the email by code also verifies the account.)
+            if (issuedRecently(existingUser.otpExpires)) {
+                return res.status(201).json({ message: "OTP sent to your email. Please verify.", email: existingUser.email });
+            }
             existingUser.otp = otp;
             existingUser.otpExpires = otpExpires;
             existingUser.otpAttempts = 0;
@@ -157,7 +167,7 @@ const resendOtp = async (req, res) => {
     // Same reply whether or not there is a pending registration, so this endpoint
     // cannot be used to discover which emails are registered.
     const generic = { message: 'If a registration is waiting for this email, a new OTP has been sent.' };
-    if (!user || user.isVerified) {
+    if (!user || user.isVerified || issuedRecently(user.otpExpires)) {
         return res.json(generic);
     }
 
@@ -168,12 +178,15 @@ const resendOtp = async (req, res) => {
 
     try {
         await user.save();
-        await sendOtpEmail(email, otp, 'verify');
-        res.json(generic);
     } catch (error) {
-        console.error('Failed to resend OTP email:', error);
-        res.status(500).json({ message: 'Email could not be sent. Please try again in a moment.' });
+        console.error('Failed to save resent OTP:', error);
+        return res.status(500).json({ message: 'Server Error' });
     }
+    // Answer immediately. Waiting for the mail server made real, pending accounts
+    // respond measurably slower than unknown emails (a timing leak); a failed send
+    // is logged and the user can simply press Resend again.
+    sendOtpEmail(email, otp, 'verify').catch((e) => console.error('Failed to resend OTP email:', e));
+    res.json(generic);
 };
 
 // @desc    Verify OTP
@@ -244,11 +257,15 @@ const forgotPassword = async (req, res) => {
             return res.json(genericReply);
         }
 
+        if (issuedRecently(user.resetOtpExpires)) {
+            return res.json(genericReply);
+        }
         user.resetOtp = generateOtp();
         user.resetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
         user.resetOtpAttempts = 0;
         await user.save();
-        await sendOtpEmail(user.email, user.resetOtp, 'reset');
+        // not awaited: same response time for known and unknown emails
+        sendOtpEmail(user.email, user.resetOtp, 'reset').catch((e) => console.error('Failed to send password reset email:', e));
         res.json(genericReply);
     } catch (error) {
         console.error('Failed to send password reset email:', error);
@@ -288,6 +305,9 @@ const resetPassword = async (req, res) => {
         }
 
         user.password = password; // re-hashed by the pre-save hook (also revokes older tokens)
+        user.isVerified = true;   // entering the emailed code proves they own this address
+        user.otp = undefined;
+        user.otpExpires = undefined;
         user.resetOtp = undefined;
         user.resetOtpExpires = undefined;
         user.resetOtpAttempts = 0;
@@ -345,8 +365,11 @@ const updateUserProfile = async (req, res) => {
             const newPassword = toStr(req.body.password, 200);
             const emailChanged = newEmail && newEmail !== user.email;
 
-            if (emailChanged && !isEmail(newEmail)) {
-                return res.status(400).json({ message: 'Please enter a valid email address' });
+            if (emailChanged) {
+                // The new address was never verified (no code sent to it), which would let
+                // anyone take over an email they don't own. Keep it fixed until there is a
+                // proper "verify new email" step. (The profile form already shows it read-only.)
+                return res.status(400).json({ message: 'Changing your email address is not supported yet. Please contact support.' });
             }
             if (newPassword && newPassword.length < MIN_PASSWORD) {
                 return res.status(400).json({ message: `Password must be at least ${MIN_PASSWORD} characters` });
@@ -412,6 +435,9 @@ const addUserAddress = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        if (user.addresses.length >= 20) {
+            return res.status(400).json({ message: 'You can save up to 20 addresses. Please delete one first.' });
+        }
         user.addresses.push({ address, city, postalCode, country: country || 'India' });
         await user.save();
         res.status(201).json({ addresses: user.addresses });
