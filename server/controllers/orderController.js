@@ -146,11 +146,29 @@ const str = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : 
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Private
+// One order at a time per account (per server instance). The "max open orders" count is
+// read-then-write, so 60 parallel requests could all pass it before any was saved.
+const ordersInFlight = new Set();
 const addOrderItems = async (req, res) => {
+  const uid = String(req.user._id);
+  if (ordersInFlight.has(uid)) {
+    return res.status(429).json({ message: 'Your previous order is still being processed. Please wait a moment.' });
+  }
+  ordersInFlight.add(uid);
+  try {
+    await placeOrder(req, res);
+  } finally {
+    ordersInFlight.delete(uid);
+  }
+};
+
+const placeOrder = async (req, res) => {
   try {
     const { orderItems, shippingMethod } = req.body;
     const paymentMethod = req.body.paymentMethod;
-    const paymentReference = str(req.body.paymentReference, 60).toUpperCase();
+    // Apps show the UTR in many shapes: "4567 8901 2345", "UPI/123456789012", "Ref No: 1234...".
+    // Keep only letters, digits, - and _ (same rule as the browser) before validating.
+    const paymentReference = str(req.body.paymentReference, 80).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     const sa = req.body.shippingAddress || {};
 
     if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {

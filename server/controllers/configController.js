@@ -26,11 +26,18 @@ const updateConfig = async (req, res) => {
     if (banners !== undefined) {
       if (!Array.isArray(banners) || banners.length > 10) return res.status(400).json({ message: 'Banners must be a list of at most 10 slides' });
       const cleanBanners = [];
-      for (const b of banners) {
+      // Banners already saved are accepted as they are (older, uncompressed uploads must not
+      // block saving UPI settings or other slides); only NEW images are size-checked.
+      const existing = await Config.findOne();
+      const saved = new Set(((existing && existing.banners) || []).map((x) => x.image));
+      for (const [i, b] of banners.entries()) {
         const image = b && typeof b.image === 'string' ? b.image : '';
         // only data-URI images (up to ~3 MB) or https URLs - nothing else
-        if (!(/^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(image) && image.length <= 3000000) && !/^https:\/\/\S{1,500}$/.test(image)) {
-          return res.status(400).json({ message: 'Each banner needs a valid image (uploaded photo or https link, max ~3 MB)' });
+        const ok = saved.has(image)
+          || (/^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(image) && image.length <= 3000000)
+          || /^https:\/\/\S{1,500}$/.test(image);
+        if (!ok) {
+          return res.status(400).json({ message: `Slide ${i + 1}: the image is missing, not a photo, or larger than about 3 MB. Re-upload it (photos are shrunk automatically) and save again.` });
         }
         cleanBanners.push({
           image,

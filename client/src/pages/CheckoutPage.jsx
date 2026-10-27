@@ -63,6 +63,10 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [upiConfig, setUpiConfig] = useState({ upiId: '', upiPayeeName: '' });
   const [upiRef, setUpiRef] = useState('');
+  // Same rule as the server: UPI apps show the UTR as "4567 8901 2345", "UPI/123456789012",
+  // "Ref No: 1234..." - keep only letters, digits, - and _ , then it must be 6-40 long.
+  const cleanUtr = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  const utrOk = (v) => /^[A-Z0-9_-]{6,40}$/.test(cleanUtr(v));
   const [upiRefError, setUpiRefError] = useState('');
 
   useEffect(() => {
@@ -175,8 +179,8 @@ const CheckoutPage = () => {
     // The UTR box lives on the payment step, so it must be checked HERE. It used to be
     // checked only when pressing "Place Order" on the review step, where the box (and
     // its error text) is not on screen - the button looked dead.
-    if (currentStep === 3 && paymentMethod === 'online' && !upiRef.trim()) {
-      setUpiRefError('Please enter the UPI transaction ID / UTR number after paying');
+    if (currentStep === 3 && paymentMethod === 'online' && !utrOk(upiRef)) {
+      setUpiRefError(upiRef.trim() ? 'That transaction ID looks too short or wrong - copy it from your UPI app (6 to 40 letters/digits).' : 'Please enter the UPI transaction ID / UTR number after paying');
       return false;
     }
 
@@ -203,7 +207,7 @@ const CheckoutPage = () => {
     }
 
     if (paymentMethod === 'online') {
-      if (!upiRef.trim()) {
+      if (!utrOk(upiRef)) {
         // safety net: send the customer back to the step that has the UTR box
         setUpiRefError('Please enter the UPI transaction ID / UTR number after paying');
         setStep(3);
@@ -241,7 +245,7 @@ const CheckoutPage = () => {
         },
         paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online',
         shippingMethod,
-        paymentReference: paymentMethod === 'online' ? upiRef.trim() : undefined,
+        paymentReference: paymentMethod === 'online' ? cleanUtr(upiRef) : undefined,
       };
 
       const { data } = await axios.post(`${API_URL}/api/orders`, orderPayload, config);

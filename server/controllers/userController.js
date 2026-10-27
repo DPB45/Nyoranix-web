@@ -10,6 +10,11 @@ const MIN_PASSWORD = 6;
 // Used to stop "Resend" being spammed: each resend resets the guess budget and mails the owner.
 const issuedRecently = (expires) => !!expires && new Date(expires).getTime() - 10 * 60 * 1000 > Date.now() - 60 * 1000;
 
+// Keeps the response time of "unknown email" close to "real account" (which does one
+// database write) so timing can't be used to find out which emails are registered.
+// The filter matches nothing, so it changes no data.
+const dummyWrite = () => User.updateOne({ _id: null }, { $set: { resetOtpAttempts: 0 } }).catch(() => {});
+
 // Case-insensitive lookup so accounts created before emails were lower-cased
 // ("Rahul@Gmail.com") can still log in with any casing.
 const findByEmail = (email) => User.findOne({ email }).collation({ locale: 'en', strength: 2 });
@@ -168,6 +173,7 @@ const resendOtp = async (req, res) => {
     // cannot be used to discover which emails are registered.
     const generic = { message: 'If a registration is waiting for this email, a new OTP has been sent.' };
     if (!user || user.isVerified || issuedRecently(user.otpExpires)) {
+        if (!user) await dummyWrite();
         return res.json(generic);
     }
 
@@ -218,6 +224,18 @@ const verifyEmail = async (req, res) => {
             return res.status(400).json(invalid);
         }
 
+        // The password the person TYPES while verifying must match the one stored for this
+        // registration. Otherwise an attacker could register a victim's email first with
+        // the attacker's password, wait for the victim to sign up and verify, and then
+        // log in as them. (Whoever really owns the email can always use "Forgot password":
+        // that needs the emailed code too, replaces the password and verifies the account.)
+        const typed = toStr(req.body.password, 200);
+        if (!typed || !(await user.matchPassword(typed))) {
+            return res.status(400).json({
+                message: 'That password does not match the one this registration was started with. Use "Forgot password" to set a new one - it also verifies your email.',
+            });
+        }
+
         user.isVerified = true;
         user.otp = undefined;
         user.otpExpires = undefined;
@@ -254,6 +272,7 @@ const forgotPassword = async (req, res) => {
     try {
         const user = isEmail(email) ? await findByEmail(email) : null;
         if (!user) {
+            await dummyWrite();
             return res.json(genericReply);
         }
 
@@ -363,7 +382,7 @@ const updateUserProfile = async (req, res) => {
         if (user) {
             const newEmail = req.body.email !== undefined ? normalizeEmail(req.body.email) : user.email;
             const newPassword = toStr(req.body.password, 200);
-            const emailChanged = newEmail && newEmail !== user.email;
+            const emailChanged = newEmail && newEmail !== normalizeEmail(user.email); // legacy accounts may be stored with capitals
 
             if (emailChanged) {
                 // The new address was never verified (no code sent to it), which would let
