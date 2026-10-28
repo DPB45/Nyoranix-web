@@ -33,7 +33,7 @@ const updateConfig = async (req, res) => {
       for (const [i, b] of banners.entries()) {
         const image = b && typeof b.image === 'string' ? b.image : '';
         // only data-URI images (up to ~3 MB) or https URLs - nothing else
-        const ok = saved.has(image)
+        const ok = (image && saved.has(image))
           || (/^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(image) && image.length <= 3000000)
           || /^https:\/\/\S{1,500}$/.test(image);
         if (!ok) {

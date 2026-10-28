@@ -63,10 +63,15 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [upiConfig, setUpiConfig] = useState({ upiId: '', upiPayeeName: '' });
   const [upiRef, setUpiRef] = useState('');
-  // Same rule as the server: UPI apps show the UTR as "4567 8901 2345", "UPI/123456789012",
-  // "Ref No: 1234..." - keep only letters, digits, - and _ , then it must be 6-40 long.
-  const cleanUtr = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-  const utrOk = (v) => /^[A-Z0-9_-]{6,40}$/.test(cleanUtr(v));
+  // Same rule as the server: reduce what the UPI app shows ("4567 8901 2345", "UPI/123456789012",
+  // "Ref No: 1234...") to one canonical form - a standalone 12-digit number if there is one,
+  // otherwise just letters/digits/-/_ - and refuse junk (too short, or like 000000 / AAAAAA).
+  const cleanUtr = (v) => {
+    const cleaned = String(v || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    const core = cleaned.match(/(?:^|\D)(\d{12})(?!\d)/);
+    return core ? core[1] : cleaned;
+  };
+  const utrOk = (v) => { const c = cleanUtr(v); return /^[A-Z0-9_-]{6,40}$/.test(c) && new Set(c.replace(/[-_]/g, '')).size >= 4; };
   const [upiRefError, setUpiRefError] = useState('');
 
   useEffect(() => {

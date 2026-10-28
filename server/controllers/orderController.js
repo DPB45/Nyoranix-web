@@ -166,9 +166,13 @@ const placeOrder = async (req, res) => {
   try {
     const { orderItems, shippingMethod } = req.body;
     const paymentMethod = req.body.paymentMethod;
-    // Apps show the UTR in many shapes: "4567 8901 2345", "UPI/123456789012", "Ref No: 1234...".
-    // Keep only letters, digits, - and _ (same rule as the browser) before validating.
-    const paymentReference = str(req.body.paymentReference, 80).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    // Apps show the UTR in many shapes ("4567 8901 2345", "UPI/123456789012", "Ref No: 1234...").
+    // Reduce it to ONE canonical form: if a standalone 12-digit number is present (that is what a
+    // UPI UTR is) it IS the reference, otherwise the cleaned text. Decorating the same payment
+    // ("UPI/...", "REF...", "...-") therefore cannot make it look like a different one.
+    const cleanedRef = str(req.body.paymentReference, 80).toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    const core = cleanedRef.match(/(?:^|\D)(\d{12})(?!\d)/);
+    const paymentReference = core ? core[1] : cleanedRef;
     const sa = req.body.shippingAddress || {};
 
     if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
@@ -197,8 +201,9 @@ const placeOrder = async (req, res) => {
     else if (mobile.length === 11 && mobile.startsWith('0')) mobile = mobile.slice(1);
     if (!/^[6-9]\d{9}$/.test(mobile)) throw new HttpError(400, 'Enter a valid 10-digit mobile number');
     shippingAddress.mobile = mobile;
-    if (paymentMethod === 'Online' && !/^[A-Z0-9_-]{6,40}$/.test(paymentReference)) {
-      throw new HttpError(400, 'The UPI transaction ID / UTR looks wrong (6-40 letters or digits)');
+    if (paymentMethod === 'Online' && !(/^[A-Z0-9_-]{6,40}$/.test(paymentReference) && new Set(paymentReference.replace(/[-_]/g, '')).size >= 4)) {
+      // also rejects junk like 000000, AAAAAA or ------
+      throw new HttpError(400, 'The UPI transaction ID / UTR looks wrong - copy it from your UPI app (at least 6 characters, not repeated)');
     }
 
     // One account must not be able to tie up all your stock (or fill the database) with

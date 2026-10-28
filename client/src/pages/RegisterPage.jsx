@@ -80,7 +80,7 @@ const RegisterPage = () => {
     else if (step === 2) {
       try {
         setLoading(true);
-        const { data } = await axios.post(`${API_URL}/api/users/verify`, { email, otp, password });
+        const { data } = await axios.post(`${API_URL}/api/users/verify`, { email, otp, password, name });
         setLoading(false);
         dispatch(setCredentials({ ...data }));
         navigate(redirect);

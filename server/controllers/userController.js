@@ -1,6 +1,7 @@
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const { sendOtpEmail, sendWelcomeEmail } = require('../utils/sendEmail');
+const crypto = require('crypto');
 const { generateOtp, toStr, normalizeEmail, isEmail } = require('../utils/security');
 
 const MAX_OTP_ATTEMPTS = 5;
@@ -10,10 +11,19 @@ const MIN_PASSWORD = 6;
 // Used to stop "Resend" being spammed: each resend resets the guess budget and mails the owner.
 const issuedRecently = (expires) => !!expires && new Date(expires).getTime() - 10 * 60 * 1000 > Date.now() - 60 * 1000;
 
-// Keeps the response time of "unknown email" close to "real account" (which does one
-// database write) so timing can't be used to find out which emails are registered.
-// The filter matches nothing, so it changes no data.
-const dummyWrite = () => User.updateOne({ _id: null }, { $set: { resetOtpAttempts: 0 } }).catch(() => {});
+// Every answer from the "does this email exist?" endpoints takes at least this long, whichever
+// branch ran (unknown email, verified account, throttled, real send). Matching the work of each
+// branch only moved the timing difference around, so a fixed floor is used instead.
+const MIN_RESPONSE_MS = 250;
+const withMinTime = async (fn) => {
+    const started = Date.now();
+    try {
+        return await fn();
+    } finally {
+        const wait = MIN_RESPONSE_MS - (Date.now() - started);
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    }
+};
 
 // Case-insensitive lookup so accounts created before emails were lower-cased
 // ("Rahul@Gmail.com") can still log in with any casing.
@@ -118,10 +128,15 @@ const registerUser = async (req, res) => {
             user = await existingUser.save();
         } else {
             // 2. Create User (Unverified)
+            // The typed password is NOT stored at registration. The person who proves they own
+            // the email (by entering the code) sets it at the verify step. So nobody can
+            // "pre-register" someone else's email with a password of their own, and correcting a
+            // mistyped password after pressing Back works. (Registration still requires a decent
+            // password so the form behaves the same for the customer.)
             user = await User.create({
                 name,
                 email,
-                password,
+                password: crypto.randomBytes(32).toString('hex'), // unusable placeholder
                 otp,
                 otpExpires,
                 isVerified: false
@@ -159,7 +174,7 @@ const registerUser = async (req, res) => {
 // @desc    Resend OTP for an unverified account
 // @route   POST /api/users/resend-otp
 // @access  Public
-const resendOtp = async (req, res) => {
+const resendOtpInner = async (req, res) => {
     const email = normalizeEmail(req.body.email);
     let user;
     try {
@@ -173,7 +188,6 @@ const resendOtp = async (req, res) => {
     // cannot be used to discover which emails are registered.
     const generic = { message: 'If a registration is waiting for this email, a new OTP has been sent.' };
     if (!user || user.isVerified || issuedRecently(user.otpExpires)) {
-        if (!user) await dummyWrite();
         return res.json(generic);
     }
 
@@ -224,17 +238,15 @@ const verifyEmail = async (req, res) => {
             return res.status(400).json(invalid);
         }
 
-        // The password the person TYPES while verifying must match the one stored for this
-        // registration. Otherwise an attacker could register a victim's email first with
-        // the attacker's password, wait for the victim to sign up and verify, and then
-        // log in as them. (Whoever really owns the email can always use "Forgot password":
-        // that needs the emailed code too, replaces the password and verifies the account.)
+        // The person who proves they own this email (by the code) chooses the password
+        // HERE. It is never taken from an earlier, unproven registration request.
         const typed = toStr(req.body.password, 200);
-        if (!typed || !(await user.matchPassword(typed))) {
-            return res.status(400).json({
-                message: 'That password does not match the one this registration was started with. Use "Forgot password" to set a new one - it also verifies your email.',
-            });
+        if (typed.length < MIN_PASSWORD) {
+            return res.status(400).json({ message: `Please enter your password (at least ${MIN_PASSWORD} characters) to finish verifying.` });
         }
+        user.password = typed; // hashed by the pre-save hook
+        const typedName = toStr(req.body.name, 100);
+        if (typedName) user.name = typedName;
 
         user.isVerified = true;
         user.otp = undefined;
@@ -263,7 +275,7 @@ const verifyEmail = async (req, res) => {
 // @desc    Request a password reset OTP
 // @route   POST /api/users/forgot-password
 // @access  Public
-const forgotPassword = async (req, res) => {
+const forgotPasswordInner = async (req, res) => {
     const email = normalizeEmail(req.body.email);
     // Same answer whether or not the account exists, so this endpoint can't be
     // used to find out which emails are registered.
@@ -272,7 +284,6 @@ const forgotPassword = async (req, res) => {
     try {
         const user = isEmail(email) ? await findByEmail(email) : null;
         if (!user) {
-            await dummyWrite();
             return res.json(genericReply);
         }
 
@@ -291,6 +302,9 @@ const forgotPassword = async (req, res) => {
         res.json(genericReply);
     }
 };
+
+const resendOtp = (req, res) => withMinTime(() => resendOtpInner(req, res));
+const forgotPassword = (req, res) => withMinTime(() => forgotPasswordInner(req, res));
 
 // @desc    Reset password using the emailed OTP
 // @route   POST /api/users/reset-password
